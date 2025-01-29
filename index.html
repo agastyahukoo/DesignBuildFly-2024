@@ -1,250 +1,151 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="UTF-8"/>
-  <title>Airbus-Style PFD</title>
-  <style>
-    body {
-      margin: 0;
-      padding: 0;
-      background: #222;
-      font-family: "Helvetica Neue", Arial, sans-serif;
-      color: #fff;
-      display: flex;
-      flex-direction: row;
-      height: 100vh;
-    }
-    #leftPane {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      border-right: 1px solid #666;
-    }
-    #rightPane {
-      width: 40%;
-      display: flex;
-      flex-direction: column;
-      align-items: stretch;
-      padding: 20px;
-      background: #1b1b1b;
-    }
-    #pfdCanvas {
-      background: #222;
-      box-shadow: 0 0 20px rgba(0,0,0,0.7);
-    }
-    #terminalOutput {
-      flex: 1;
-      margin-bottom: 10px;
-      background: #000;
-      padding: 10px;
-      overflow-y: auto;
-      font-family: monospace;
-      font-size: 14px;
-      white-space: pre-wrap;
-    }
-    #terminalInput {
-      display: flex;
-    }
-    #terminalText {
-      flex: 1;
-      padding: 5px;
-      font-family: monospace;
-      font-size: 14px;
-      border: 1px solid #666;
-      background: #333;
-      color: #fff;
-    }
-    #terminalButton {
-      padding: 5px 10px;
-      margin-left: 5px;
-      background: #555;
-      color: #fff;
-      border: none;
-      cursor: pointer;
-    }
-    #info {
-      position: absolute;
-      top: 10px;
-      left: 10px;
-      color: #0f0;
-      font-size: 14px;
-      background: rgba(0,0,0,0.5);
-      padding: 5px;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Primary Flight Display</title>
+    <style>
+        body {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            height: 100vh;
+            background-color: #1a1a1a;
+            color: white;
+            font-family: Arial, sans-serif;
+            padding: 20px;
+        }
+        .pfd {
+            width: 50%;
+            height: 80vh;
+            border: 2px solid white;
+            position: relative;
+            overflow: hidden;
+            background-color: black;
+        }
+        .horizon {
+            position: absolute;
+            width: 100%;
+            height: 200%;
+            top: -50%;
+            background: linear-gradient(to bottom, blue 50%, brown 50%);
+            transition: transform 0.1s linear;
+        }
+        .roll-indicator {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            transform-origin: center;
+            transition: transform 0.1s linear;
+        }
+        .center-line {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 100px;
+            height: 2px;
+            background-color: white;
+            transform: translate(-50%, -50%);
+        }
+        .settings {
+            width: 40%;
+            background: #222;
+            padding: 20px;
+            border-radius: 5px;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+        }
+        .settings h2 {
+            width: 100%;
+            text-align: left;
+            border-bottom: 2px solid white;
+            padding-bottom: 5px;
+            margin-bottom: 10px;
+        }
+        .settings label, .settings input, .settings button {
+            width: 100%;
+            margin-bottom: 10px;
+        }
+        .settings input {
+            padding: 8px;
+            border: 1px solid #555;
+            background: #333;
+            color: white;
+        }
+        .settings button {
+            padding: 10px;
+            background: #007bff;
+            border: none;
+            color: white;
+            cursor: pointer;
+            transition: background 0.3s ease;
+        }
+        .settings button:hover {
+            background: #0056b3;
+        }
+        .terminal {
+            background: black;
+            height: 200px;
+            overflow-y: auto;
+            padding: 10px;
+            border: 1px solid white;
+            font-family: monospace;
+            width: 100%;
+        }
+    </style>
 </head>
 <body>
+    <div class="pfd">
+        <div class="roll-indicator" id="rollIndicator">
+            <div class="horizon" id="horizon"></div>
+        </div>
+        <div class="center-line"></div>
+    </div>
 
-<div id="leftPane">
-  <canvas id="pfdCanvas" width="500" height="500"></canvas>
-</div>
+    <div class="settings">
+        <h2>Settings</h2>
+        <label for="baudRate">Baud Rate:</label>
+        <input type="number" id="baudRate" value="230400">
+        
+        <label for="serialPort">Serial Port:</label>
+        <input type="text" id="serialPort" value="/dev/ttyUSB0">
+        
+        <button onclick="updateSettings()">Update</button>
 
-<div id="rightPane">
-  <div id="terminalOutput"></div>
-  <div id="terminalInput">
-    <input type="text" id="terminalText" placeholder="Enter command..." />
-    <button id="terminalButton">Send</button>
-  </div>
-</div>
+        <h2>Terminal</h2>
+        <div class="terminal" id="terminal"></div>
+        <input type="text" id="commandInput" placeholder="Enter command">
+        <button onclick="sendCommand()">Send</button>
+    </div>
 
-<div id="info">Yaw=0, Pitch=0, Roll=0</div>
+    <script>
+        async function fetchAttitude() {
+            const response = await fetch('/get_attitude');
+            const data = await response.json();
+            const { yaw, pitch, roll } = data;
+            
+            document.getElementById('horizon').style.transform = `translateY(${pitch * 2}px)`;
+            document.getElementById('rollIndicator').style.transform = `rotate(${roll}deg)`;
+        }
 
-<script src="https://cdn.socket.io/4.4.1/socket.io.min.js"
-        integrity="sha384-f9cTtR/vIvqkcLLp+M7Jr6I5ftBPrQFFyaR1HpQcAd22jyH3Y1BNS6S4mkb+z3Uc"
-        crossorigin="anonymous"></script>
-<script>
-const socket = io();
-const canvas = document.getElementById('pfdCanvas');
-const ctx = canvas.getContext('2d');
-const infoDiv = document.getElementById('info');
-const terminalOutput = document.getElementById('terminalOutput');
-const terminalText = document.getElementById('terminalText');
-const terminalButton = document.getElementById('terminalButton');
+        function updateSettings() {
+            const baudRate = document.getElementById('baudRate').value;
+            const serialPort = document.getElementById('serialPort').value;
+            
+            console.log(`Updated Baud Rate: ${baudRate}, Serial Port: ${serialPort}`);
+        }
 
-let yaw = 0, pitch = 0, roll = 0;
-const PITCH_PIX_PER_DEG = 4;
-const CANVAS_SIZE = 500;
-const HORIZON_WIDTH = 2000;
-const HORIZON_HEIGHT = 2000;
+        function sendCommand() {
+            const command = document.getElementById('commandInput').value;
+            const terminal = document.getElementById('terminal');
+            
+            terminal.innerHTML += `> ${command}<br>`;
+            terminal.scrollTop = terminal.scrollHeight;
+            document.getElementById('commandInput').value = '';
+        }
 
-socket.on('imu_data', data => {
-  yaw = data.yaw;
-  pitch = data.pitch;
-  roll = data.roll;
-  updatePFD();
-});
-
-socket.on('terminal_output', msg => {
-  terminalOutput.textContent += msg + "\n";
-  terminalOutput.scrollTop = terminalOutput.scrollHeight;
-});
-
-terminalButton.addEventListener('click', sendCommand);
-terminalText.addEventListener('keyup', e => {
-  if(e.key === "Enter") sendCommand();
-});
-
-function sendCommand() {
-  let cmd = terminalText.value.trim();
-  if(cmd.length > 0) {
-    socket.emit('terminal_command', cmd);
-    terminalText.value = "";
-  }
-}
-
-function updatePFD(){
-  ctx.clearRect(0,0,canvas.width,canvas.height);
-  ctx.save();
-  ctx.translate(CANVAS_SIZE/2, CANVAS_SIZE/2);
-  let rollRad = -roll * Math.PI / 180;
-  ctx.rotate(rollRad);
-  let pitchPixels = pitch * PITCH_PIX_PER_DEG;
-  ctx.translate(0, pitchPixels);
-  ctx.fillStyle = '#4AAFF7';
-  ctx.fillRect(-HORIZON_WIDTH/2, -HORIZON_HEIGHT, HORIZON_WIDTH, HORIZON_HEIGHT);
-  ctx.fillStyle = '#A67B3E';
-  ctx.fillRect(-HORIZON_WIDTH/2, 0, HORIZON_WIDTH, HORIZON_HEIGHT);
-  ctx.strokeStyle = '#fff';
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.moveTo(-HORIZON_WIDTH/2, 0);
-  ctx.lineTo(HORIZON_WIDTH/2, 0);
-  ctx.stroke();
-  drawPitchLadder();
-  ctx.restore();
-  drawAircraftSymbol();
-  drawRollScale(roll);
-  infoDiv.textContent = `Yaw=${yaw.toFixed(1)}, Pitch=${pitch.toFixed(1)}, Roll=${roll.toFixed(1)}`;
-}
-
-function drawPitchLadder(){
-  ctx.strokeStyle='#fff';
-  ctx.fillStyle='#fff';
-  ctx.lineWidth=2;
-  ctx.font='16px Arial';
-  ctx.textAlign='center';
-  ctx.textBaseline='middle';
-  let maxPitch=30;
-  for(let deg=5; deg<=maxPitch; deg+=5){
-    let yUp=-deg*PITCH_PIX_PER_DEG;
-    let yDown= deg*PITCH_PIX_PER_DEG;
-    let lineW=80;
-    ctx.beginPath();
-    ctx.moveTo(-lineW/2, yUp);
-    ctx.lineTo(lineW/2, yUp);
-    ctx.stroke();
-    ctx.fillText(`${deg}`,0,yUp-12);
-    ctx.beginPath();
-    ctx.moveTo(-lineW/2, yDown);
-    ctx.lineTo(lineW/2, yDown);
-    ctx.stroke();
-    ctx.fillText(`${deg}`,0,yDown+12);
-  }
-}
-
-function drawAircraftSymbol(){
-  ctx.save();
-  ctx.translate(CANVAS_SIZE/2, CANVAS_SIZE/2);
-  ctx.strokeStyle='#FFDF00';
-  ctx.lineWidth=3;
-  ctx.beginPath();
-  ctx.moveTo(-30,0);
-  ctx.lineTo(-10,0);
-  ctx.lineTo(0,10);
-  ctx.lineTo(10,0);
-  ctx.lineTo(30,0);
-  ctx.stroke();
-  ctx.restore();
-}
-
-function drawRollScale(rollAngle){
-  ctx.save();
-  ctx.translate(CANVAS_SIZE/2, CANVAS_SIZE/2);
-  const radius=120;
-  function polar(aDeg){
-    let rad=(aDeg-90)*Math.PI/180;
-    return {x: radius*Math.cos(rad), y: radius*Math.sin(rad)};
-  }
-  ctx.strokeStyle='#fff';
-  ctx.lineWidth=2;
-  ctx.beginPath();
-  for(let a=-60; a<=60; a++){
-    let {x,y} = polar(a);
-    if(a===-60) ctx.moveTo(x,y);
-    else ctx.lineTo(x,y);
-  }
-  ctx.stroke();
-  let majorTicks = [-45,-30,-20,-10,0,10,20,30,45];
-  ctx.textAlign='center';
-  ctx.textBaseline='bottom';
-  ctx.font='14px Arial';
-  for(let val of majorTicks){
-    let {x,y} = polar(val);
-    ctx.beginPath();
-    ctx.arc(x,y,3,0,2*Math.PI);
-    ctx.fillStyle='#fff';
-    ctx.fill();
-    if(val!==0){
-      let label=Math.abs(val).toString();
-      ctx.fillText(label,x,y-5);
-    }
-  }
-  ctx.save();
-  ctx.rotate(-rollAngle*Math.PI/180);
-  ctx.beginPath();
-  ctx.moveTo(0,-radius-10);
-  ctx.lineTo(-10,-radius+10);
-  ctx.lineTo(10,-radius+10);
-  ctx.closePath();
-  ctx.fillStyle='#FFDF00';
-  ctx.fill();
-  ctx.restore();
-  ctx.restore();
-}
-
-updatePFD();
-</script>
+        setInterval(fetchAttitude, 100);
+    </script>
 </body>
 </html>
