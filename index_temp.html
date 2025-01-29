@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Primary Flight Display</title>
+    <style>
+        body {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            height: 100vh;
+            background-color: #1a1a1a;
+            color: white;
+            font-family: Arial, sans-serif;
+            padding: 20px;
+        }
+        .pfd {
+            width: 50%;
+            height: 80vh;
+            border: 2px solid white;
+            position: relative;
+            overflow: hidden;
+            background-color: black;
+        }
+        .horizon {
+            position: absolute;
+            width: 300%;
+            height: 200%;
+            top: -50%;
+            left: -100%;
+            background: linear-gradient(to bottom, #007bff 30%, #87ceeb 50%, #a0522d 50%, #654321 70%);
+            transition: transform 0.1s linear;
+        }
+        .roll-indicator {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            transform-origin: center;
+            transition: transform 0.1s linear;
+        }
+        .pitch-markers {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+        .pitch-marker {
+            position: absolute;
+            width: 100%;
+            height: 1px;
+            background-color: white;
+            left: 0;
+            text-align: center;
+            color: white;
+            font-size: 12px;
+        }
+        .center-line {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 100px;
+            height: 2px;
+            background-color: white;
+            transform: translate(-50%, -50%);
+        }
+    </style>
+</head>
+<body>
+    <div class="pfd">
+        <div class="roll-indicator" id="rollIndicator">
+            <div class="horizon" id="horizon"></div>
+            <div class="pitch-markers" id="pitchMarkers"></div>
+        </div>
+        <div class="center-line"></div>
+    </div>
+
+    <script>
+        function createPitchMarkers() {
+            const pitchMarkers = document.getElementById('pitchMarkers');
+            for (let i = -60; i <= 60; i += 10) {
+                const marker = document.createElement('div');
+                marker.className = 'pitch-marker';
+                marker.style.top = `${50 - i * 1.5}%`;
+                marker.innerText = `${i}°`;
+                pitchMarkers.appendChild(marker);
+            }
+        }
+
+        async function fetchAttitude() {
+            const response = await fetch('/get_attitude');
+            const data = await response.json();
+            const { yaw, pitch, roll } = data;
+            
+            document.getElementById('horizon').style.transform = `translate(${roll * 2}px, ${pitch * 2}px) rotate(${roll}deg)`;
+            document.getElementById('rollIndicator').style.transform = `rotate(${roll}deg)`;
+        }
+
+        setInterval(fetchAttitude, 100);
+        createPitchMarkers();
+    </script>
+</body>
+</html>
