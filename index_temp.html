@@ -23,37 +23,21 @@
             overflow: hidden;
             background-color: black;
         }
-        .horizon {
-            position: absolute;
-            width: 300%;
-            height: 200%;
-            top: -50%;
-            left: -100%;
-            background: linear-gradient(to bottom, #007bff 30%, #87ceeb 50%, #a0522d 50%, #654321 70%);
-            transition: transform 0.1s linear;
-        }
         .roll-indicator {
             position: absolute;
-            width: 100%;
-            height: 100%;
+            width: 200%;
+            height: 200%;
+            top: -50%;
+            left: -50%;
             transform-origin: center;
             transition: transform 0.1s linear;
         }
-        .pitch-markers {
+        .horizon {
             position: absolute;
             width: 100%;
-            height: 100%;
-            pointer-events: none;
-        }
-        .pitch-marker {
-            position: absolute;
-            width: 100%;
-            height: 1px;
-            background-color: white;
-            left: 0;
-            text-align: center;
-            color: white;
-            font-size: 12px;
+            height: 200%;
+            background: linear-gradient(to bottom, #007bff 30%, #87ceeb 50%, #a0522d 50%, #654321 70%);
+            transition: transform 0.1s linear;
         }
         .center-line {
             position: absolute;
@@ -63,6 +47,62 @@
             height: 2px;
             background-color: white;
             transform: translate(-50%, -50%);
+        }
+        .pitch-markers {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            text-align: center;
+            font-size: 14px;
+            font-weight: bold;
+        }
+        .pitch-line {
+            position: absolute;
+            width: 80%;
+            height: 2px;
+            background-color: white;
+            left: 10%;
+        }
+        .settings {
+            width: 40%;
+            background: #222;
+            padding: 20px;
+            border-radius: 5px;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+        }
+        .settings h2 {
+            width: 100%;
+            text-align: left;
+            border-bottom: 2px solid white;
+            padding-bottom: 5px;
+            margin-bottom: 10px;
+        }
+        .settings label, .settings input, .settings button {
+            width: 100%;
+            margin-bottom: 10px;
+        }
+        .settings input, .settings select {
+            padding: 8px;
+            border: 1px solid #555;
+            background: #333;
+            color: white;
+        }
+        .settings button {
+            padding: 10px;
+            background: #007bff;
+            border: none;
+            color: white;
+            cursor: pointer;
+            transition: background 0.3s ease;
+        }
+        .settings button:hover {
+            background: #0056b3;
         }
     </style>
 </head>
@@ -75,29 +115,69 @@
         <div class="center-line"></div>
     </div>
 
+    <div class="settings">
+        <h2>Settings</h2>
+        <label for="portList">Available Ports:</label>
+        <select id="portList"></select>
+        
+        <label for="baudRate">Baud Rate:</label>
+        <input type="number" id="baudRate" value="230400">
+        
+        <button onclick="updateSettings()">Connect</button>
+    </div>
+
     <script>
         function createPitchMarkers() {
-            const pitchMarkers = document.getElementById('pitchMarkers');
-            for (let i = -60; i <= 60; i += 10) {
-                const marker = document.createElement('div');
-                marker.className = 'pitch-marker';
-                marker.style.top = `${50 - i * 1.5}%`;
-                marker.innerText = `${i}°`;
-                pitchMarkers.appendChild(marker);
+            const pitchMarkers = document.getElementById("pitchMarkers");
+            for (let i = -30; i <= 30; i += 10) {
+                if (i !== 0) {
+                    let marker = document.createElement("div");
+                    marker.classList.add("pitch-line");
+                    marker.style.top = `${50 - i * 2}%`;
+                    marker.innerHTML = `<span style="position: absolute; left: -30px;">${i}</span>`;
+                    pitchMarkers.appendChild(marker);
+                }
             }
         }
-
+        
         async function fetchAttitude() {
             const response = await fetch('/get_attitude');
             const data = await response.json();
             const { yaw, pitch, roll } = data;
             
-            document.getElementById('horizon').style.transform = `translate(${roll * 2}px, ${pitch * 2}px) rotate(${roll}deg)`;
+            document.getElementById('horizon').style.transform = `translateY(${pitch * 2}px)`;
             document.getElementById('rollIndicator').style.transform = `rotate(${roll}deg)`;
         }
 
-        setInterval(fetchAttitude, 100);
+        async function updateSettings() {
+            const baudRate = document.getElementById('baudRate').value;
+            const port = document.getElementById('portList').value;
+            
+            const response = await fetch('/set_serial', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ port, baud_rate: baudRate })
+            });
+            const result = await response.json();
+            alert(result.success ? "Connected successfully" : "Failed to connect");
+        }
+
+        async function fetchPorts() {
+            const response = await fetch('/list_ports');
+            const data = await response.json();
+            const portList = document.getElementById('portList');
+            portList.innerHTML = '';
+            data.ports.forEach(port => {
+                const option = document.createElement('option');
+                option.value = port;
+                option.textContent = port;
+                portList.appendChild(option);
+            });
+        }
+
         createPitchMarkers();
+        setInterval(fetchAttitude, 100);
+        fetchPorts();
     </script>
 </body>
 </html>
