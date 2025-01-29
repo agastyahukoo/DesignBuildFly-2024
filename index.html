@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8"/>
+  <title>Airbus-Style Primary Flight Display</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background: #333;
+      font-family: Arial, sans-serif;
+      color: white;
+    }
+
+    #pfdContainer {
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      overflow: hidden;
+    }
+
+    #pfdCanvas {
+      background: #222;
+      box-shadow: 0 0 40px rgba(0,0,0,0.8);
+    }
+
+    /* Simple text overlay for debugging (optional) */
+    #info {
+      position: absolute;
+      top: 0;
+      left: 0;
+      margin: 10px;
+      padding: 10px;
+      background: rgba(0,0,0,0.3);
+      color: #0f0;
+      font: 14px monospace;
+    }
+  </style>
+</head>
+<body>
+
+<div id="pfdContainer">
+  <canvas id="pfdCanvas" width="600" height="600"></canvas>
+</div>
+
+<div id="info">Yaw=0, Pitch=0, Roll=0</div>
+
+<!-- Socket.IO -->
+<script src="https://cdn.socket.io/4.4.1/socket.io.min.js"
+        integrity="sha384-f9cTtR/vIvqkcLLp+M7Jr6I5ftBPrQFFyaR1HpQcAd22jyH3Y1BNS6S4mkb+z3Uc"
+        crossorigin="anonymous"></script>
+
+<script>
+/**
+ * We will draw a simplified "Airbus-style" Attitude Indicator:
+ *
+ *  - The background is half blue (sky) and half brown (ground),
+ *    separated by a "horizon line".
+ *  - The horizon rotates according to 'roll' and shifts (up/down)
+ *    according to 'pitch'.
+ *  - Overlaid pitch ladder lines (+/- 5, 10, 15, 20, 25, 30 etc.).
+ *  - A bank angle scale at the top.
+ *  - A fixed "aircraft symbol" in the center.
+ *
+ * The math:
+ *  1) Translate canvas to center = (canvas.width/2, canvas.height/2)
+ *  2) Rotate by -roll (since horizon must roll in opposite direction of aircraft).
+ *  3) Translate the horizon up/down based on pitch. For each degree of pitch,
+ *     we shift by some pixels (e.g. 4 px/deg).
+ */
+
+const socket = io();
+const canvas = document.getElementById('pfdCanvas');
+const ctx = canvas.getContext('2d');
+const infoDiv = document.getElementById('info');
+
+// Some configuration constants
+const PITCH_PIX_PER_DEG = 4;  // 4 pixels per 1 degree of pitch
+const CANVAS_SIZE = 600;      // width = height = 600
+const HORIZON_WIDTH = 2000;   // big "strip" width for drawing sky/ground
+const HORIZON_HEIGHT = 2000;  // big "strip" height to allow roll/pitch
+
+// We'll store current yaw/pitch/roll globally
+let yaw   = 0;
+let pitch = 0;
+let roll  = 0;
+
+// Socket event: "imu_data" from server
+socket.on('imu_data', data => {
+  yaw   = data.yaw;
+  pitch = data.pitch;
+  roll  = data.roll;
+  updatePFD();
+});
+
+function updatePFD() {
+  // Clear the canvas
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Step 1: Move origin to center of canvas
+  ctx.save();
+  ctx.translate(CANVAS_SIZE / 2, CANVAS_SIZE / 2);
+
+  // Step 2: Rotate horizon by -roll (in radians)
+  let rollRad = -roll * Math.PI / 180;
+  ctx.rotate(rollRad);
+
+  // Step 3: Shift horizon by pitch
+  let pitchPixels = pitch * PITCH_PIX_PER_DEG;
+  ctx.translate(0, pitchPixels);
+
+  // Draw the horizon:
+  //  - We'll define y=0 as horizon line
+  //  - Above y=0 = sky (blue), below y=0 = ground (brown).
+  // We draw a large rectangle for sky and another for ground.
+  // We'll do it with two big rectangles:
+  //   - one from -HORIZON_HEIGHT to 0 for the sky
+  //   - one from 0 to +HORIZON_HEIGHT for the ground
+
+  // Sky (blue)
+  ctx.fillStyle = '#4AAFF7'; // Airbus-ish sky color
+  ctx.fillRect(-HORIZON_WIDTH/2, -HORIZON_HEIGHT, HORIZON_WIDTH, HORIZON_HEIGHT);
+
+  // Ground (brown)
+  ctx.fillStyle = '#A67B3E'; // Airbus-ish ground color
+  ctx.fillRect(-HORIZON_WIDTH/2, 0, HORIZON_WIDTH, HORIZON_HEIGHT);
+
+  // Draw the white horizon line at y=0
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(-HORIZON_WIDTH/2, 0);
+  ctx.lineTo(HORIZON_WIDTH/2, 0);
+  ctx.stroke();
+
+  // Draw pitch ladder lines:
+  drawPitchLadder(ctx);
+
+  // Restore to center so we can draw the fixed aircraft symbol
+  ctx.restore();
+
+  // Draw the fixed aircraft symbol in the center
+  drawAircraftSymbol(ctx);
+
+  // Draw the roll scale at the top
+  drawRollScale(ctx, roll);
+
+  // Display text for debugging
+  infoDiv.textContent = `Yaw=${yaw.toFixed(1)}, Pitch=${pitch.toFixed(1)}, Roll=${roll.toFixed(1)}`;
+}
+
+function drawPitchLadder(ctx) {
+  // We'll draw lines at +/- (5, 10, 15, 20, 25, 30) degrees, for example.
+  // The line is offset in y by pitch * PITCH_PIX_PER_DEG.
+  // But we've already translated and rotated the context for the horizon.
+  // So we just draw lines at negative y for positive pitch, positive y for negative pitch.
+
+  ctx.strokeStyle = '#fff';
+  ctx.fillStyle = '#fff';
+  ctx.lineWidth = 2;
+  ctx.font = '16px Arial';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  let maxPitch = 30;
+  for (let deg = 5; deg <= maxPitch; deg += 5) {
+    // offset in pixels
+    let yOffsetUp   = -deg * PITCH_PIX_PER_DEG; // positive pitch => up
+    let yOffsetDown = deg  * PITCH_PIX_PER_DEG; // negative pitch => down
+
+    // Pitch ladder line width changes with angle, but let's keep it constant for simplicity
+    let lineWidth = 80;
+
+    // +++++ Positive pitch lines +++++
+    ctx.beginPath();
+    ctx.moveTo(-lineWidth/2, yOffsetUp);
+    ctx.lineTo(lineWidth/2, yOffsetUp);
+    ctx.stroke();
+    // Draw pitch text
+    ctx.fillText(`${deg}`, 0, yOffsetUp - 12);
+
+    // ----- Negative pitch lines -----
+    ctx.beginPath();
+    ctx.moveTo(-lineWidth/2, yOffsetDown);
+    ctx.lineTo(lineWidth/2, yOffsetDown);
+    ctx.stroke();
+    // Negative label
+    ctx.fillText(`${deg}`, 0, yOffsetDown + 12);
+  }
+}
+
+function drawAircraftSymbol(ctx) {
+  // The "aircraft symbol" or "wings" at the center is typically a fixed
+  // shape that looks like a W or a short inverted V with side wings.
+  // We'll keep it simple.
+
+  ctx.save();
+  ctx.translate(CANVAS_SIZE / 2, CANVAS_SIZE / 2); // Center of canvas
+  ctx.strokeStyle = '#FFDF00'; // Airbus reference symbol color (yellowish)
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+
+  // Draw a small "W" shape
+  ctx.moveTo(-30, 0);
+  ctx.lineTo(-10, 0);
+  ctx.lineTo(0, 10);
+  ctx.lineTo(10, 0);
+  ctx.lineTo(30, 0);
+
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawRollScale(ctx, rollAngle) {
+  // A typical Airbus roll scale is at the top center, showing tick marks at
+  // 0, ±10, 20, 30, 45. The actual scale is more complicated, but let's do a simpler version.
+
+  // We'll draw an arc at the top, with the current roll indicated by a pointer at the center.
+  ctx.save();
+  ctx.translate(CANVAS_SIZE / 2, CANVAS_SIZE / 2);
+
+  // Roll scale radius
+  const radius = 120;
+  // Let’s define a small function to get coords on circle for a given angle
+  function polar(angleDeg) {
+    const rad = (angleDeg - 90) * Math.PI / 180; // offset -90 to make 0 deg up
+    return {
+      x: radius * Math.cos(rad),
+      y: radius * Math.sin(rad)
+    };
+  }
+
+  // Draw the semi-circle (approx ±60 deg)
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  // Start from -60 deg to +60 deg
+  for (let a = -60; a <= 60; a++) {
+    let { x, y } = polar(a);
+    if (a === -60) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+
+  // Tick marks at increments
+  let majorTicks = [-45, -30, -20, -10, 0, 10, 20, 30, 45];
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'bottom';
+  ctx.font = '14px Arial';
+
+  majorTicks.forEach((val) => {
+    let { x, y } = polar(val);
+    // draw small tick
+    ctx.beginPath();
+    ctx.arc(x, y, 3, 0, 2*Math.PI);
+    ctx.fillStyle = '#fff';
+    ctx.fill();
+
+    // label
+    if (val !== 0) {
+      let label = Math.abs(val).toString();
+      ctx.fillText(label, x, y - 5);
+    }
+  });
+
+  // Now draw the "roll pointer" which points to the current roll
+  // We'll just do a small triangle at the top center, rotating with roll
+  // Actually, in Airbus style, the scale is static and the pointer moves,
+  // but let's do the simpler approach: we rotate the pointer itself.
+
+  // We don't want to rotate the entire scale, just the pointer.
+  ctx.save();
+  ctx.rotate(-rollAngle * Math.PI/180);
+  // Draw triangle at top
+  ctx.beginPath();
+  ctx.moveTo(0, -radius - 10);
+  ctx.lineTo(-10, -radius + 10);
+  ctx.lineTo(10, -radius + 10);
+  ctx.closePath();
+  ctx.fillStyle = '#FFDF00';
+  ctx.fill();
+
+  ctx.restore();
+  ctx.restore();
+}
+
+// Initialize with a blank
+updatePFD();
+</script>
+
+</body>
+</html>
