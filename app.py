@@ -1,62 +1,40 @@
-import time
-import threading
+from flask import Flask, render_template, jsonify
 import serial
-from flask import Flask, render_template
-from flask_socketio import SocketIO
+import threading
+import os
 
-# ========================
-# Configuration
-# Adjust these values as needed.
-# ========================
-SERIAL_PORT = '/dev/ttyACM0'
+app = Flask(__name__, template_folder=os.path.abspath(os.path.dirname(__file__)))
+
+# Serial port configuration (Update the port as needed)
+SERIAL_PORT = "/dev/ttyUSB0"  # Change based on your system
 BAUD_RATE = 230400
-UPDATE_HZ = 50
 
-app = Flask(__name__)
-app.config['SECRET_KEY'] = 'REPLACE_THIS_SECRET'
-socketio = SocketIO(app)
+# Global variables for aircraft attitude
+yaw, pitch, roll = 0.0, 0.0, 0.0
 
-latest_data = {'yaw': 0.0, 'pitch': 0.0, 'roll': 0.0, 'looptimer': 0}
+def read_serial():
+    global yaw, pitch, roll
+    ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1)
+    while True:
+        try:
+            line = ser.readline().decode("utf-8").strip()
+            if line:
+                values = line.split(", ")
+                if len(values) == 4:
+                    yaw, pitch, roll = map(float, values[:3])
+        except Exception as e:
+            print("Error reading serial data:", e)
 
 @app.route('/')
 def index():
     return render_template('index.html')
 
-@socketio.on('connect')
-def handle_connect():
-    pass
-
-@socketio.on('terminal_command')
-def handle_terminal_command(cmd):
-    socketio.emit('terminal_output', f"You typed: {cmd}")
-
-def serial_thread():
-    try:
-        ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1)
-    except serial.SerialException:
-        return
-    while True:
-        line = ser.readline().decode('utf-8', errors='ignore').strip()
-        if not line:
-            continue
-        parts = line.split(',')
-        if len(parts) >= 4:
-            try:
-                yaw_str, pitch_str, roll_str, loop_str = [p.strip() for p in parts[:4]]
-                y = float(yaw_str)
-                p = float(pitch_str)
-                r = float(roll_str)
-                l = float(loop_str)
-                latest_data['yaw'] = y
-                latest_data['pitch'] = p
-                latest_data['roll'] = r
-                latest_data['looptimer'] = l
-                socketio.emit('imu_data', latest_data)
-            except ValueError:
-                pass
-        time.sleep(1.0 / UPDATE_HZ)
+@app.route('/get_attitude')
+def get_attitude():
+    return jsonify({"yaw": yaw, "pitch": pitch, "roll": roll})
 
 if __name__ == '__main__':
-    t = threading.Thread(target=serial_thread, daemon=True)
-    t.start()
-    socketio.run(app, host='0.0.0.0', port=5000)
+    # Start serial reading in a separate thread
+    serial_thread = threading.Thread(target=read_serial, daemon=True)
+    serial_thread.start()
+    app.run(host='0.0.0.0', port=4000, debug=True)
