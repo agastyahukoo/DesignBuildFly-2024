@@ -105,13 +105,13 @@
 
     <div class="settings">
         <h2>Settings</h2>
+        <label for="portList">Available Ports:</label>
+        <select id="portList"></select>
+        
         <label for="baudRate">Baud Rate:</label>
         <input type="number" id="baudRate" value="230400">
         
-        <label for="serialPort">Serial Port:</label>
-        <input type="text" id="serialPort" value="/dev/ttyUSB0">
-        
-        <button onclick="updateSettings()">Update</button>
+        <button onclick="updateSettings()">Connect</button>
 
         <h2>Terminal</h2>
         <div class="terminal" id="terminal"></div>
@@ -129,23 +129,42 @@
             document.getElementById('rollIndicator').style.transform = `rotate(${roll}deg)`;
         }
 
-        function updateSettings() {
+        async function updateSettings() {
             const baudRate = document.getElementById('baudRate').value;
-            const serialPort = document.getElementById('serialPort').value;
+            const port = document.getElementById('portList').value;
             
-            console.log(`Updated Baud Rate: ${baudRate}, Serial Port: ${serialPort}`);
+            const response = await fetch('/set_serial', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ port, baud_rate: baudRate })
+            });
+            const result = await response.json();
+            alert(result.success ? "Connected successfully" : "Failed to connect");
+        }
+
+        async function fetchPorts() {
+            const response = await fetch('/list_ports');
+            const data = await response.json();
+            const portList = document.getElementById('portList');
+            portList.innerHTML = '';
+            data.ports.forEach(port => {
+                const option = document.createElement('option');
+                option.value = port;
+                option.textContent = port;
+                portList.appendChild(option);
+            });
         }
 
         function sendCommand() {
             const command = document.getElementById('commandInput').value;
             const terminal = document.getElementById('terminal');
-            
             terminal.innerHTML += `> ${command}<br>`;
             terminal.scrollTop = terminal.scrollHeight;
             document.getElementById('commandInput').value = '';
         }
 
         setInterval(fetchAttitude, 100);
+        fetchPorts();
     </script>
 </body>
 </html>
