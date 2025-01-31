@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Primary Flight Display</title>
+    <style>
+        /* Global styles */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            height: 100vh;
+            background: linear-gradient(180deg, #1a1a1a 0%, #121212 100%);
+            color: #ffffff;
+            font-family: Arial, sans-serif;
+            padding: 20px;
+        }
+
+        /* PFD Container */
+        .pfd {
+            width: 50%;
+            height: 80vh;
+            border: 2px solid #444;
+            position: relative;
+            overflow: hidden;
+            background-color: #000;
+            box-shadow: 0 0 10px rgba(0,0,0,0.5);
+        }
+
+        /* Roll Indicator (the container that rotates) */
+        .roll-indicator {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            transform-origin: center;
+            transition: transform 0.1s linear;
+        }
+
+        /* Horizon (moves up/down based on pitch) */
+        .horizon {
+            position: absolute;
+            width: 100%;
+            height: 200%;
+            top: -50%;
+            background: linear-gradient(to bottom, #007bff 30%, #87ceeb 50%, #a0522d 50%, #654321 70%);
+            transition: transform 0.1s linear;
+        }
+
+        /* Center reference line */
+        .center-line {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 100px;
+            height: 2px;
+            background-color: #fff;
+            transform: translate(-50%, -50%);
+        }
+
+        /* Settings panel */
+        .settings {
+            width: 40%;
+            background: #222;
+            padding: 20px;
+            border: 2px solid #444;
+            box-shadow: 0 0 10px rgba(0,0,0,0.5);
+        }
+
+        .settings h2 {
+            width: 100%;
+            text-align: left;
+            border-bottom: 2px solid #444;
+            padding-bottom: 5px;
+            margin-bottom: 20px;
+            font-weight: normal;
+        }
+
+        .settings label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+
+        /* Custom dropdown wrapper */
+        .select-wrapper {
+            position: relative;
+            margin-bottom: 20px;
+        }
+
+        /* Custom dropdown styling */
+        #portList {
+            appearance: none;
+            background: #333;
+            border: 1px solid #555;
+            color: #fff;
+            width: 100%;
+            padding: 10px 40px 10px 10px;
+            font-size: 14px;
+            cursor: pointer;
+            outline: none;
+        }
+
+        /* Arrow icon for dropdown */
+        .select-wrapper::after {
+            content: "▼";
+            position: absolute;
+            right: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #ccc;
+            pointer-events: none;
+        }
+
+        /* Inputs & Buttons */
+        #baudRate,
+        #commandInput {
+            width: 100%;
+            padding: 10px;
+            background: #333;
+            border: 1px solid #555;
+            color: #fff;
+            margin-bottom: 20px;
+            outline: none;
+        }
+
+        /* Connect button spacing */
+        #connectButton {
+            padding: 12px;
+            background: #0b5ed7;
+            border: none;
+            color: #fff;
+            cursor: pointer;
+            outline: none;
+            border-radius: 0;
+            font-size: 14px;
+            transition: background 0.3s ease;
+            margin-bottom: 30px; /* Adds space below the connect button */
+        }
+
+        #connectButton:hover {
+            background: #094cb1;
+        }
+
+        /* Terminal */
+        .terminal {
+            background: #000;
+            height: 200px;
+            overflow-y: auto;
+            padding: 10px;
+            border: 1px solid #444;
+            font-family: monospace;
+            width: 100%;
+            margin-bottom: 20px;
+            color: #0f0; /* Default text color in the terminal is green. */
+        }
+
+        /* Colored text classes for terminal output */
+        .text-error {
+            color: red;
+        }
+        .text-success {
+            color: limegreen;
+        }
+        .text-normal {
+            color: #fff;
+        }
+    </style>
+</head>
+<body>
+    <!-- Primary Flight Display -->
+    <div class="pfd">
+        <div class="roll-indicator" id="rollIndicator">
+            <div class="horizon" id="horizon"></div>
+        </div>
+        <div class="center-line"></div>
+    </div>
+
+    <!-- Settings & Terminal Panel -->
+    <div class="settings">
+        <h2>Settings</h2>
+        
+        <label for="portList">Available Ports:</label>
+        <div class="select-wrapper">
+            <select id="portList"></select>
+        </div>
+        
+        <label for="baudRate">Baud Rate:</label>
+        <input type="number" id="baudRate" value="230400">
+
+        <button id="connectButton" onclick="updateSettings()">Connect</button>
+
+        <h2>Terminal</h2>
+        <div class="terminal" id="terminal"></div>
+        <input type="text" id="commandInput" placeholder="Enter command">
+    </div>
+
+    <script>
+        // Helper function to determine text color class based on output content
+        function getColorClassForOutput(output) {
+            const lower = output.toLowerCase();
+            
+            // Basic checks for error/failure
+            if (lower.includes("error") || lower.includes("failed") || lower.includes("unknown command")) {
+                return "text-error";
+            }
+            // Checks for success
+            if (lower.includes("connected") || lower.includes("success")) {
+                return "text-success";
+            }
+            // Default for normal info
+            return "text-normal";
+        }
+
+        // Periodically fetch attitude data and update the PFD
+        async function fetchAttitude() {
+            try {
+                const response = await fetch('/get_attitude');
+                const data = await response.json();
+                const { yaw, pitch, roll } = data;
+
+                // Move horizon based on pitch
+                document.getElementById('horizon').style.transform = `translateY(${pitch * 2}px)`;
+                // Rotate the roll indicator based on roll
+                document.getElementById('rollIndicator').style.transform = `rotate(${roll}deg)`;
+            } catch (error) {
+                console.error("Error fetching attitude:", error);
+            }
+        }
+
+        // Update port and baud rate on the server
+        async function updateSettings() {
+            const baudRate = document.getElementById('baudRate').value;
+            const port = document.getElementById('portList').value;
+
+            try {
+                const response = await fetch('/set_serial', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ port, baud_rate: baudRate })
+                });
+                const result = await response.json();
+                alert(result.success ? "Connected successfully" : "Failed to connect");
+            } catch (error) {
+                alert("Error: " + error);
+            }
+        }
+
+        // Fetch available serial ports and populate the dropdown
+        async function fetchPorts() {
+            try {
+                const response = await fetch('/list_ports');
+                const data = await response.json();
+                const portList = document.getElementById('portList');
+                portList.innerHTML = '';
+                data.ports.forEach(port => {
+                    const option = document.createElement('option');
+                    option.value = port;
+                    option.textContent = port;
+                    portList.appendChild(option);
+                });
+            } catch (error) {
+                console.error("Error fetching ports:", error);
+            }
+        }
+
+        // Send command to the backend
+        async function sendCommand() {
+            const command = document.getElementById('commandInput').value.trim();
+            if (!command) return;
+
+            // Display the command in the terminal (always white for typed commands)
+            const terminal = document.getElementById('terminal');
+            terminal.innerHTML += `<span class="text-normal">> ${command}</span><br>`;
+            terminal.scrollTop = terminal.scrollHeight;
+            document.getElementById('commandInput').value = '';
+
+            try {
+                // POST the command to the backend
+                const response = await fetch('/run_command', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ command })
+                });
+                const data = await response.json();
+                const result = data.response;
+
+                // Check if the result indicates a terminal clear
+                if (/^Terminal cleared\.?/i.test(result)) {
+                    terminal.innerHTML = '';
+                } else {
+                    // Determine color based on the result
+                    const colorClass = getColorClassForOutput(result);
+                    // Replace newlines with <br> for multi-line output
+                    terminal.innerHTML += `<span class="${colorClass}">${result.replace(/\n/g, '<br>')}</span><br>`;
+                }
+                terminal.scrollTop = terminal.scrollHeight;
+
+            } catch (error) {
+                terminal.innerHTML += `<span class="text-error">Error: ${error}</span><br>`;
+                terminal.scrollTop = terminal.scrollHeight;
+            }
+        }
+
+        // Send command on Enter key
+        document.getElementById('commandInput').addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                sendCommand();
+            }
+        });
+
+        // Set up recurring tasks
+        setInterval(fetchAttitude, 100);  // Fetch attitude data
+        fetchPorts();                     // Populate port list on page load
+    </script>
+</body>
+</html>
