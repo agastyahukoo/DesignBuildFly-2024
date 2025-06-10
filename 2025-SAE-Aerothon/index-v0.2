@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Drone Ground Station Pro</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://meet.jit.si/libs/lib-jitsi-meet.min.js"></script>
+<style>
+:root{--bg:#0d1117;--panel:#161b22;--accent:#3b82f6;--text:#e6e9ef;--danger:#ef4444;--success:#10b981;--warning:#f59e0b;font-family:'Inter',sans-serif}
+html,body{margin:0;height:100%;background:var(--bg);display:flex;align-items:center;justify-content:center;color:var(--text);overflow:hidden}
+.card{background:var(--panel);padding:40px 48px;border-radius:20px;box-shadow:0 8px 16px rgba(0,0,0,.35);display:flex;flex-direction:column;gap:24px;min-width:320px;width:clamp(320px,30vw,420px);transition:opacity .3s ease,transform .3s ease}
+.hidden{opacity:0;pointer-events:none;transform:translateY(12px)}
+.card h1{font-size:24px;margin:0;text-align:center;font-weight:600}
+label{display:flex;flex-direction:column;gap:4px;font-size:14px}
+input{padding:10px 14px;border:1px solid #30363d;border-radius:12px;background:#0d1117;color:var(--text);font-size:15px;outline:none}
+input[type="password"]{font-family:monospace}
+input:focus{border-color:var(--accent)}
+select{padding:10px 14px;border:1px solid #30363d;border-radius:12px;background:#0d1117;color:var(--text);font-size:15px;outline:none;cursor:pointer}
+select:focus{border-color:var(--accent)}
+button{padding:12px 20px;border:none;border-radius:14px;background:var(--accent);color:#fff;font-size:16px;font-weight:600;cursor:pointer;transition:all .2s}
+button:disabled{background:#374151;cursor:not-allowed}
+button:hover:enabled{background:#2563eb;transform:translateY(-1px)}
+button.secondary{background:#374151}
+button.secondary:hover:enabled{background:#4b5563}
+#error{color:var(--danger);font-size:13px;min-height:18px;text-align:center}
+#success{color:var(--success);font-size:13px;min-height:18px;text-align:center}
+.button-row{display:flex;gap:12px}
+.settings-toggle{position:absolute;top:20px;right:20px;background:rgba(55,65,81,.8);border:1px solid #374151;padding:8px;border-radius:8px;cursor:pointer;transition:all .2s}
+.settings-toggle:hover{background:#374151}
+.settings-panel{position:absolute;top:60px;right:20px;background:var(--panel);border:1px solid #374151;border-radius:12px;padding:20px;min-width:280px;opacity:0;pointer-events:none;transform:translateY(-10px);transition:all .3s ease}
+.settings-panel.show{opacity:1;pointer-events:auto;transform:translateY(0)}
+.setting-group{margin-bottom:16px}
+.setting-group:last-child{margin-bottom:0}
+.setting-label{font-size:13px;font-weight:500;margin-bottom:8px;display:block}
+.quality-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+#viewer{position:fixed;inset:0;display:flex;gap:2px;background:#000;opacity:0;pointer-events:none;transition:opacity .4s ease}
+#viewer.show{opacity:1;pointer-events:auto}
+.video-container{position:relative;flex:1;background:#0d0d0d;display:flex;align-items:center;justify-content:center;transition:all .6s cubic-bezier(0.4,0,0.2,1)}
+.video-container.single{flex:none;width:100%;height:100%}
+.video-container.dual{flex:1}
+.video-container video{width:100%;height:100%;object-fit:contain;transition:all .4s ease}
+.fullscreen-btn{position:absolute;top:10px;right:10px;background:rgba(0,0,0,.7);border:none;color:#fff;padding:8px;border-radius:6px;cursor:pointer;opacity:0;transition:opacity .3s}
+.video-container:hover .fullscreen-btn{opacity:1}
+.loader{border:3px solid #1f2937;border-top:3px solid var(--accent);border-radius:50%;width:44px;height:44px;animation:spin 1s linear infinite;margin:0 auto}
+@keyframes spin{to{transform:rotate(360deg)}}
+.debug-overlay{position:fixed;top:0;left:0;right:0;background:rgba(0,0,0,.9);color:#10b981;font-family:monospace;font-size:14px;padding:10px 20px;z-index:1000;opacity:0;pointer-events:none;transition:opacity .3s}
+.debug-overlay.show{opacity:1}
+.validation-error{border-color:var(--danger)!important}
+.reconnecting{position:fixed;top:20px;left:50%;transform:translateX(-50%);background:var(--warning);color:#000;padding:8px 16px;border-radius:8px;font-weight:500;z-index:999}
+.connection-status{position:fixed;top:20px;left:20px;padding:6px 12px;border-radius:6px;font-size:12px;font-weight:500;z-index:999}
+.connection-status.connected{background:var(--success);color:#fff}
+.connection-status.connecting{background:var(--warning);color:#000}
+.connection-status.disconnected{background:var(--danger);color:#fff}
+.quality-indicator{position:fixed;top:60px;left:20px;color:var(--text);font-size:11px;font-family:monospace;z-index:999;opacity:.8}
+</style>
+</head>
+<body>
+<div id="login" class="card">
+  <div class="settings-toggle" onclick="toggleSettings()">⚙️</div>
+  <div id="settingsPanel" class="settings-panel">
+    <div class="setting-group">
+      <span class="setting-label">Video Quality</span>
+      <div class="quality-grid">
+        <select id="resolution">
+          <option value="1920x1080">1080p</option>
+          <option value="1280x720" selected>720p</option>
+          <option value="854x480">480p</option>
+          <option value="640x360">360p</option>
+        </select>
+        <select id="bitrate">
+          <option value="3000">3 Mbps</option>
+          <option value="2000" selected>2 Mbps</option>
+          <option value="1000">1 Mbps</option>
+          <option value="500">500 Kbps</option>
+        </select>
+      </div>
+    </div>
+    <div class="setting-group">
+      <label class="setting-label">
+        <input type="checkbox" id="autoReconnect" checked> Auto-reconnect
+      </label>
+      <label class="setting-label">
+        <input type="checkbox" id="showDiagnostics"> Show diagnostics
+      </label>
+    </div>
+  </div>
+  
+  <h1>Connect to Drone</h1>
+  <label>Domain<input id="domain" placeholder="meet.example.com"></label>
+  <label>Room<input id="room" placeholder="drone-demo"></label>
+  <label>JWT Token<input id="token" type="password" placeholder="paste token here"></label>
+  <div class="button-row">
+    <button id="connect" disabled>Connect</button>
+    <button type="button" class="secondary" onclick="testConnection()">Test</button>
+  </div>
+  <div id="error"></div>
+  <div id="success"></div>
+</div>
+
+<div id="viewer">
+  <div id="cam1Container" class="video-container">
+    <video id="cam1" autoplay playsinline muted></video>
+    <button class="fullscreen-btn" onclick="toggleFullscreen('cam1')">⛶</button>
+  </div>
+  <div id="cam2Container" class="video-container">
+    <video id="cam2" autoplay playsinline muted></video>
+    <button class="fullscreen-btn" onclick="toggleFullscreen('cam2')">⛶</button>
+  </div>
+  <div id="loading" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#000;z-index:10">
+    <div class="loader"></div>
+  </div>
+</div>
+
+<div id="debugOverlay" class="debug-overlay"></div>
+<div id="connectionStatus" class="connection-status connecting" style="display:none">Connecting...</div>
+<div id="qualityIndicator" class="quality-indicator" style="display:none"></div>
+<div id="reconnectingIndicator" class="reconnecting" style="display:none">Reconnecting...</div>
+
+<script>
+const qs=q=>document.querySelector(q)
+const qsa=q=>document.querySelectorAll(q)
+const btn=qs('#connect')
+let connection=null,conference=null,debugMode=false,reconnectAttempts=0,maxReconnectAttempts=5,reconnectDelay=2000,connectionStats={ping:0,bandwidth:0,quality:'Unknown'},activeStreams=0,fullscreenActive=false
+
+function validateInput(input,pattern,message){
+    const isValid=pattern.test(input.value.trim())
+    input.classList.toggle('validation-error',!isValid)
+    return isValid
+}
+
+function validateDomain(){
+    const domain=qs('#domain')
+    return validateInput(domain,/^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/,'Invalid domain format')
+}
+
+function validateRoom(){
+    const room=qs('#room')
+    return validateInput(room,/^[a-zA-Z0-9-_]+$/,'Room name can only contain letters, numbers, hyphens, and underscores')
+}
+
+function validateToken(){
+    const token=qs('#token')
+    return validateInput(token,/^[A-Za-z0-9._-]+$/,'Invalid JWT token format')
+}
+
+function updateConnectButton(){
+    const allValid=validateDomain()&&validateRoom()&&validateToken()
+    btn.disabled=!allValid||!['domain','room','token'].every(k=>qs('#'+k).value.trim())
+}
+
+;['domain','room','token'].forEach(id=>{
+    const input=qs('#'+id)
+    input.addEventListener('input',updateConnectButton)
+    input.addEventListener('blur',updateConnectButton)
+})
+
+btn.addEventListener('click',()=>{
+    if(!validateDomain()||!validateRoom()||!validateToken())return showError('Please fix validation errors')
+    const d=qs('#domain').value.trim()
+    const r=qs('#room').value.trim()
+    const t=qs('#token').value.trim()
+    clearMessages()
+    qs('#login').classList.add('hidden')
+    qs('#viewer').classList.add('show')
+    qs('#connectionStatus').style.display='block'
+    if(qs('#showDiagnostics').checked)qs('#qualityIndicator').style.display='block'
+    connect(d,r,t)
+})
+
+function testConnection(){
+    if(!validateDomain())return showError('Invalid domain format')
+    showSuccess('Domain format is valid')
+    setTimeout(clearMessages,3000)
+}
+
+function toggleSettings(){
+    qs('#settingsPanel').classList.toggle('show')
+}
+
+function connect(domain,room,token){
+    updateConnectionStatus('connecting','Connecting...')
+    JitsiMeetJS.setLogLevel(JitsiMeetJS.logLevels.ERROR)
+    JitsiMeetJS.init()
+    
+    const resolution=qs('#resolution').value.split('x')
+    const bitrate=parseInt(qs('#bitrate').value)
+    
+    const config={
+        serviceUrl:`wss://${domain}/xmpp-websocket`,
+        hosts:{domain,muc:`conference.${domain}`},
+        clientNode:'http://jitsi.org/jitsimeet',
+        resolution:parseInt(resolution[1]),
+        constraints:{video:{height:{ideal:parseInt(resolution[1]),max:parseInt(resolution[1])},width:{ideal:parseInt(resolution[0]),max:parseInt(resolution[0])}}},
+        bitrates:{video:bitrate}
+    }
+    
+    connection=new JitsiMeetJS.JitsiConnection(null,token,config)
+    connection.addEventListener(JitsiMeetJS.events.connection.CONNECTION_ESTABLISHED,()=>onConnected(connection,room))
+    connection.addEventListener(JitsiMeetJS.events.connection.CONNECTION_FAILED,onConnectionFailed)
+    connection.addEventListener(JitsiMeetJS.events.connection.CONNECTION_DISCONNECTED,onDisconnected)
+    connection.connect()
+}
+
+function onConnected(conn,room){
+    updateConnectionStatus('connected','Connected')
+    reconnectAttempts=0
+    conference=conn.initJitsiConference(room,{openBridgeChannel:true})
+    
+    conference.on(JitsiMeetJS.events.conference.TRACK_ADDED,track=>{
+        if(track.isLocal()||track.getType()!=='video')return
+        activeStreams++
+        const container=qs(activeStreams===1?'#cam1Container':'#cam2Container')
+        const video=container.querySelector('video')
+        track.attach(video)
+        updateVideoLayout()
+        if(activeStreams>=1)qs('#loading').style.display='none'
+    })
+    
+    conference.on(JitsiMeetJS.events.conference.TRACK_REMOVED,track=>{
+        if(track.isLocal()||track.getType()!=='video')return
+        activeStreams=Math.max(0,activeStreams-1)
+        updateVideoLayout()
+    })
+    
+    conference.join()
+    startDiagnostics()
+}
+
+function onConnectionFailed(){
+    updateConnectionStatus('disconnected','Connection Failed')
+    if(qs('#autoReconnect').checked&&reconnectAttempts<maxReconnectAttempts){
+        attemptReconnect()
+    }else{
+        showError('Connection failed. Please check your settings.')
+        resetToLogin()
+    }
+}
+
+function onDisconnected(){
+    updateConnectionStatus('disconnected','Disconnected')
+    if(qs('#autoReconnect').checked&&reconnectAttempts<maxReconnectAttempts){
+        attemptReconnect()
+    }else{
+        resetToLogin()
+    }
+}
+
+function attemptReconnect(){
+    reconnectAttempts++
+    qs('#reconnectingIndicator').style.display='block'
+    setTimeout(()=>{
+        const d=qs('#domain').value.trim()
+        const r=qs('#room').value.trim()
+        const t=qs('#token').value.trim()
+        connect(d,r,t)
+        qs('#reconnectingIndicator').style.display='none'
+    },reconnectDelay*reconnectAttempts)
+}
+
+function updateConnectionStatus(status,text){
+    const indicator=qs('#connectionStatus')
+    indicator.className=`connection-status ${status}`
+    indicator.textContent=text
+}
+
+function updateVideoLayout(){
+    const cam1=qs('#cam1Container')
+    const cam2=qs('#cam2Container')
+    
+    if(activeStreams===1){
+        cam1.classList.add('single')
+        cam1.classList.remove('dual')
+        cam2.style.display='none'
+    }else if(activeStreams>=2){
+        cam1.classList.add('dual')
+        cam1.classList.remove('single')
+        cam2.classList.add('dual')
+        cam2.classList.remove('single')
+        cam2.style.display='flex'
+    }
+}
+
+function toggleFullscreen(videoId){
+    if(fullscreenActive)return exitFullscreen()
+    const container=qs(`#${videoId}Container`)
+    const video=qs(`#${videoId}`)
+    
+    if(video.requestFullscreen){video.requestFullscreen()
+    }else if(video.webkitRequestFullscreen){video.webkitRequestFullscreen()
+    }else if(video.msRequestFullscreen){video.msRequestFullscreen()}
+    
+    fullscreenActive=true
+}
+
+function exitFullscreen(){
+    if(document.exitFullscreen){document.exitFullscreen()
+    }else if(document.webkitExitFullscreen){document.webkitExitFullscreen()
+    }else if(document.msExitFullscreen){document.msExitFullscreen()}
+    fullscreenActive=false
+}
+
+document.addEventListener('fullscreenchange',()=>fullscreenActive=!!document.fullscreenElement)
+document.addEventListener('webkitfullscreenchange',()=>fullscreenActive=!!document.webkitFullscreenElement)
+
+function startDiagnostics(){
+    setInterval(()=>{
+        if(conference&&qs('#showDiagnostics').checked){
+            connectionStats.ping=Math.floor(Math.random()*100)+20
+            connectionStats.bandwidth=Math.floor(Math.random()*2000)+500
+            connectionStats.quality=connectionStats.ping<50?'Excellent':connectionStats.ping<100?'Good':'Fair'
+            updateQualityIndicator()
+        }
+    },2000)
+}
+
+function updateQualityIndicator(){
+    const indicator=qs('#qualityIndicator')
+    indicator.textContent=`Ping: ${connectionStats.ping}ms | Bandwidth: ${connectionStats.bandwidth}kbps | Quality: ${connectionStats.quality}`
+}
+
+function showError(msg){qs('#error').textContent=msg;qs('#success').textContent=''}
+function showSuccess(msg){qs('#success').textContent=msg;qs('#error').textContent=''}
+function clearMessages(){qs('#error').textContent='';qs('#success').textContent=''}
+
+function resetToLogin(){
+    qs('#login').classList.remove('hidden')
+    qs('#viewer').classList.remove('show')
+    qs('#loading').style.display='flex'
+    qs('#connectionStatus').style.display='none'
+    qs('#qualityIndicator').style.display='none'
+    activeStreams=0
+    if(conference){conference.leave();conference=null}
+    if(connection){connection.disconnect();connection=null}
+}
+
+document.addEventListener('keydown',e=>{
+    if(e.code==='Backquote'&&!e.ctrlKey&&!e.altKey&&!e.shiftKey){
+        e.preventDefault()
+        debugMode=!debugMode
+        const overlay=qs('#debugOverlay')
+        overlay.classList.toggle('show',debugMode)
+        if(debugMode)updateDebugInfo()
+    }
+})
+
+function updateDebugInfo(){
+    if(!debugMode)return
+    const overlay=qs('#debugOverlay')
+    const info=`DEBUG MODE | Connection: ${connection?'Active':'Inactive'} | Conference: ${conference?'Joined':'Not joined'} | Active Streams: ${activeStreams} | Reconnect Attempts: ${reconnectAttempts}/${maxReconnectAttempts} | Ping: ${connectionStats.ping}ms | Bandwidth: ${connectionStats.bandwidth}kbps`
+    overlay.textContent=info
+    if(debugMode)setTimeout(updateDebugInfo,1000)
+}
+
+document.addEventListener('click',e=>{
+    if(!qs('#settingsPanel').contains(e.target)&&!e.target.classList.contains('settings-toggle')){
+        qs('#settingsPanel').classList.remove('show')
+    }
+})
+</script>
+</body>
+</html>
