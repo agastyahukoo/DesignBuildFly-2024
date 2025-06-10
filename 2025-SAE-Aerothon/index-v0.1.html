@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Drone Ground Station</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+<script src="https://meet.jit.si/libs/lib-jitsi-meet.min.js"></script>
+<style>
+:root{--bg:#0d1117;--panel:#161b22;--accent:#3b82f6;--text:#e6e9ef;--danger:#ef4444;font-family:'Inter',sans-serif}
+html,body{margin:0;height:100%;background:var(--bg);display:flex;align-items:center;justify-content:center;color:var(--text)}
+.card{background:var(--panel);padding:40px 48px;border-radius:20px;box-shadow:0 8px 16px rgba(0,0,0,.35);display:flex;flex-direction:column;gap:24px;min-width:320px;width:clamp(320px,30vw,420px);transition:opacity .3s ease,transform .3s ease}
+.hidden{opacity:0;pointer-events:none;transform:translateY(12px)}
+.card h1{font-size:24px;margin:0;text-align:center;font-weight:600}
+label{display:flex;flex-direction:column;gap:4px;font-size:14px}
+input{padding:10px 14px;border:1px solid #30363d;border-radius:12px;background:#0d1117;color:var(--text);font-size:15px;outline:none}
+input:focus{border-color:var(--accent)}
+button{padding:12px 0;border:none;border-radius:14px;background:var(--accent);color:#fff;font-size:16px;font-weight:600;cursor:pointer;transition:background .2s}
+button:disabled{background:#374151;cursor:not-allowed}
+button:hover:enabled{background:#2563eb}
+#error{color:var(--danger);font-size:13px;min-height:18px;text-align:center}
+#viewer{position:fixed;inset:0;display:flex;gap:2px;background:#000;opacity:0;pointer-events:none;transition:opacity .4s ease}
+#viewer.show{opacity:1;pointer-events:auto}
+video{flex:1;background:#0d0d0d;object-fit:contain}
+.loader{border:3px solid #1f2937;border-top:3px solid var(--accent);border-radius:50%;width:44px;height:44px;animation:spin 1s linear infinite;margin:0 auto}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div id="login" class="card">
+  <h1>Connect to Drone</h1>
+  <label>Domain<input id="domain" placeholder="meet.example.com"></label>
+  <label>Room<input id="room" placeholder="drone-demo"></label>
+  <label>JWT Token<input id="token" placeholder="paste token here"></label>
+  <button id="connect" disabled>Connect</button>
+  <div id="error"></div>
+</div>
+
+<div id="viewer">
+  <video id="cam1" autoplay playsinline muted></video>
+  <video id="cam2" autoplay playsinline muted></video>
+  <div id="loading" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#000">
+    <div class="loader"></div>
+  </div>
+</div>
+
+<script>
+const qs=q=>document.querySelector(q)
+const btn=qs('#connect')
+;['domain','room','token'].forEach(id=>qs('#'+id).addEventListener('input',()=>btn.disabled=!['domain','room','token'].every(k=>qs('#'+k).value.trim())))
+btn.addEventListener('click',()=>{
+    const d=qs('#domain').value.trim()
+    const r=qs('#room').value.trim()
+    const t=qs('#token').value.trim()
+    if(!d||!r||!t)return
+    qs('#login').classList.add('hidden')
+    qs('#viewer').classList.add('show')
+    connect(d,r,t)
+})
+function connect(domain,room,token){
+    JitsiMeetJS.setLogLevel(JitsiMeetJS.logLevels.ERROR)
+    JitsiMeetJS.init()
+    const conn=new JitsiMeetJS.JitsiConnection(null,token,{serviceUrl:`wss://${domain}/xmpp-websocket`,hosts:{domain,muc:`conference.${domain}`},clientNode:'http://jitsi.org/jitsimeet'})
+    conn.addEventListener(JitsiMeetJS.events.connection.CONNECTION_ESTABLISHED,()=>onConnected(conn,room))
+    conn.addEventListener(JitsiMeetJS.events.connection.CONNECTION_FAILED,()=>showErr('Connection failed'))
+    conn.addEventListener(JitsiMeetJS.events.connection.CONNECTION_DISCONNECTED,()=>showErr('Disconnected'))
+    conn.connect()
+}
+function onConnected(conn,room){
+    const conf=conn.initJitsiConference(room,{openBridgeChannel:true})
+    let slot=0
+    conf.on(JitsiMeetJS.events.conference.TRACK_ADDED,track=>{
+        if(track.isLocal()||track.getType()!=='video')return
+        const v=qs(slot++?'#cam2':'#cam1')
+        track.attach(v)
+        if(slot===2)qs('#loading').style.display='none'
+    })
+    conf.join()
+}
+function showErr(msg){
+    qs('#error').textContent=msg
+    qs('#login').classList.remove('hidden')
+    qs('#viewer').classList.remove('show')
+    qs('#loading').style.display='flex'
+}
+</script>
+</body>
+</html>
