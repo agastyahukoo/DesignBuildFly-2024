@@ -1,138 +1,107 @@
-Below is a **check-list you can hand to a teammate who has never touched a Pi or Jitsi before**.
-Follow it line-by-line and you will be watching both drone cameras on the ground-station screen in < 30 min.
+### Quick-Start Checklist
+
+Follow these 15 bite-size steps and you’ll have two Pi cameras streaming into the new **Drone Ground Station Pro** page in about 25 minutes—even if you’ve never touched Jitsi or a Raspberry Pi before.
 
 ---
 
-## 0 . What you need on the bench
+#### 1 · What to have on the desk
 
-| Item                                                              | Notes                                                                                                                                      |
-| ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Raspberry Pi 5** (4 GB+), USB-C PSU, micro-SD (32 GB)           | Pi 5 needs the new 27 W supply or a clean 5 V 3 A bench source.                                                                            |
-| **2 × cameras**                                                   | Any two USB UVC webcams *or* two Pi CSI/UCSE cams (e.g. Cam Module 3).                                                                     |
-| **4 G/LTE dongle or Wi-Fi**                                       | For a desk test Wi-Fi is fine.                                                                                                             |
-| **Laptop/desktop** (ground station)                               | Windows 10+/macOS/Linux with Chrome/Edge/Firefox.                                                                                          |
-| **Jitsi server**                                                  | • Fast track: sign up for **8×8 JaaS** free tier.<br>• DIY: run `docker-compose` with the official `jitsi/jitsi-meet` stack on a cloud VM. |
-| The **single-file HTML** prototype you got in the previous answer | Put it somewhere you can double-click.                                                                                                     |
+* **Raspberry Pi 5** (4 GB +), 27 W USB-C power, 32 GB micro-SD
+* **Two cameras** — USB webcams *or* Pi CSI/UCSE ribbon cams
+* **Network** — Wi-Fi is fine for tabletop tests; 4 G dongle later
+* **Laptop/desktop** with Chrome/Edge/Firefox (ground station)
+* Internet account with **8×8 JaaS** (fastest Jitsi option)
 
 ---
 
-## 1 . Prepare the Jitsi back end (once)
+### A · Prepare the back-end (once)
 
-### A. If you use **8×8 JaaS (recommended for demos)**
+| Step | Command / click                                   |
+| ---- | ------------------------------------------------- |
+| 1    | Sign up at **jaas.8x8.vc** → **Create App**       |
+| 2    | Copy **App ID** and **App Secret**                |
+| 3    | In “Security” turn **Lobby OFF** and **JWT ONLY** |
 
-1. Sign up at [jaas.8x8.vc](https://jaas.8x8.vc) → “Create app”.
-2. Copy the **App ID** and **Secret**.
-3. In “Security” turn on **JWT only** and **Lobby off**.
-
-### B. If you self-host (Docker way)
-
-1. On any Ubuntu 22.04/24.04 VPS with a public IPv4 run:
-
-   ```bash
-   git clone https://github.com/jitsi/docker-jitsi-meet && cd docker-jitsi-meet
-   cp env.example .env
-   # edit .env → set PUBLIC_URL, ENABLE_AUTH=1, ENABLE_GUESTS=0
-   docker compose up -d
-   ```
-2. Add DNS `A` record `meet.example.com` → your VPS IP and point a TLS proxy such as **Caddy** or **Traefik** at `docker-jitsi-meet/web`.
-
-> **Why JWT?** It skips any login or pre-join screens so your app looks 100 % custom.
+> *Why JaaS?* No servers to install, HTTPS and TURN already there.
 
 ---
 
-## 2 . Mint a test JWT (30-sec CLI)
+### B · Mint one test JWT (60 s)
 
-On any machine with Node 18+:
+On **any** machine with Node 18 +:
 
 ```bash
-npm install -g jsonwebtoken-cli
-jwt sign --alg HS256 --secret '<YOUR_SECRET>' \
-'{"iss":"<YOUR_APP_ID>","aud":"jitsi","room":"drone-demo","exp":'$((`date +%s`+3600))'}'
+npm i -g jsonwebtoken-cli
+jwt sign --alg HS256 --secret 'APP_SECRET' \
+'{"iss":"APP_ID","aud":"jitsi","room":"drone-demo","exp":'$((`date +%s`+86400))'}'
 ```
 
-*Copy the resulting long string* — that is the **token** you will paste into the ground-station GUI.
-(Repeat the same command on the Pi so the drone also has a token; they can be identical.)
+Copy the long string that appears—that is your **token**.
+(You can reuse the very same token on the Pi and on the laptop.)
 
 ---
 
-## 3 . Flash & update the Pi
-
-1. Download **Raspberry Pi OS 64-bit (Bookworm, April 2025)** → flash with **Raspberry Pi Imager**.
-2. First boot:
-
-   ```bash
-   sudo raspi-config   # → Interface Options → Camera → Enable
-   sudo raspi-config   # → Performance → GPU Memory → 256
-   ```
-3. Update & install Chromium:
-
-   ```bash
-   sudo apt update && sudo apt full-upgrade -y
-   sudo apt install -y chromium-browser
-   ```
-4. Plug in both cameras (`ls /dev/video*` should show `video0` and `video1`).
-
----
-
-## 4 . Launch the streams from the Pi (one line per cam)
-
-Open an **SSH** shell (or the Pi’s own terminal) and run:
+### C · Flash and prep the Pi 5 (10 min)
 
 ```bash
-chromium-browser --no-sandbox --autoplay-policy=no-user-gesture-required \
-"https://meet.example.com/drone-demo?jwt=<PASTE_TOKEN>#config.prejoinPageEnabled=false&config.startWithAudioMuted=true&config.startSilent=true" &
+# 1. Install OS
+# – Flash “Raspberry Pi OS 64-bit (Bookworm)” with Raspberry Pi Imager
+# – Boot once, go through the wizard
+
+# 2. Enable cameras & give GPU 256 MB
+sudo raspi-config          # Interface Options → Camera → Enable
+sudo raspi-config          # Performance → GPU Memory → 256
+
+# 3. Update and install Chromium
+sudo apt update && sudo apt full-upgrade -y
+sudo apt install -y chromium-browser
 ```
 
-* Repeat once more, adding `--user-data-dir=/tmp/alt` so a second Chromium instance grabs the second camera.
-
-Chromium auto-publishes the default webcam; if both instances start you now have **two remote tracks** in the Jitsi room.
+Plug both cameras → `ls /dev/video*` should show `video0` and `video1`.
 
 ---
 
-## 5 . Start the ground-station viewer
+### D · Start streaming from the Pi (2 min)
 
-1. Copy the earlier **`drone-viewer.html`** to your laptop.
+Open an SSH terminal (or the Pi desktop) and run **once per camera**:
 
-2. Double-click it (or open with Chrome).
+```bash
+chromium-browser --no-sandbox \
+  --autoplay-policy=no-user-gesture-required \
+  "https://8x8.vc/drone-demo?jwt=TOKEN#config.prejoinPageEnabled=false&config.startWithAudioMuted=true" &
+```
 
-3. Fill in:
-
-   | Field         | Value                                 |
-   | ------------- | ------------------------------------- |
-   | **Domain**    | `meet.example.com` (or your JaaS URL) |
-   | **Room**      | `drone-demo`                          |
-   | **JWT Token** | the long string from step 2           |
-
-4. Press **Connect** → the login panel fades, the black dashboard appears, and after 2-3 s both video panes light up.
+* For the **second** instance add `--user-data-dir=/tmp/cam2`.
+* Each Chromium tab automatically publishes one webcam to Jitsi.
 
 ---
 
-## 6 . What you should see
+### E · Set up the ground-station page (2 min)
 
-* Left pane = first camera.
-* Right pane = second camera.
-* No toolbars, chat buttons, or Jitsi branding anywhere.
-
-If either feed is blank check:
-
-* The Pi terminal: WebRTC ICE failures print in red.
-* Laptop network: your browser must reach `wss://<domain>/xmpp-websocket` (port 443).
-* **CTRL + SHIFT + I** in the viewer → Console shows `TRACK_ADDED` events for each camera.
+1. Copy the big **Drone Ground Station Pro** HTML you pasted above into a file called `viewer.html`.
+2. Double-click `viewer.html` on the laptop—page opens instantly (no server needed).
 
 ---
 
-## 7 . Moving from desk to drone
+### F · Connect (30 s)
 
-| Replace…                 | With…                                                                                    |
-| ------------------------ | ---------------------------------------------------------------------------------------- |
-| Wi-Fi                    | Your **USB 4 G modem** (`ppp0` or `wwan0`). Latency will rise to \~200 ms.               |
-| Two USB cams             | Two CSI/UCSE ribbon cams; Chromium will list them as `/base` and `/extra`.               |
-| Manual token             | A tiny Python script that fetches a fresh JWT via your backend API before each flight.   |
-| Double click viewer.html | Package it into **Electron** using `electron-builder --dir` and distribute an installer. |
+| Field on the Home screen | What to type                      |
+| ------------------------ | --------------------------------- |
+| **Domain**               | `8x8.vc`                          |
+| **Room**                 | `drone-demo`                      |
+| **JWT Token**            | *(paste the token you generated)* |
+
+Click **Connect** → the login card fades, a black dashboard appears, then both camera feeds pop in.
+No Jitsi watermark, no toolbar, just your own UI.
 
 ---
 
-### End-to-end test complete 🎉
+### G · That’s it—fly!
 
-You now have a repeatable recipe: flash Pi → install Chromium → run two browser instances into a JWT-protected Jitsi room → open the single-file viewer on the ground station.
-From here you can embed the same HTML into Electron, add telemetry overlays, or swap Chromium for an `ffmpeg → Jitsi Ingress` pipeline without changing anything in the viewer UI.
+* **ESC / ⛶** buttons toggle full-screen per feed.
+* Gear icon lets you pick resolution/bit-rate and turn on auto-reconnect.
+* Press <kbd>Ctrl</kbd> + <kbd>\`</kbd> to open the live debug overlay.
+
+If you later switch to a 4 G dongle, nothing changes—Chromium will ICE-reconnect over the mobile link automatically.
+
+Happy streaming!
