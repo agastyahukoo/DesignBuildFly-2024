@@ -1,0 +1,971 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Drone Ground Station Pro</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://meet.jit.si/libs/lib-jitsi-meet.min.js"></script>
+<style>
+:root {
+  --bg-primary: #0a0a0b;
+  --bg-secondary: #1a1b1e;
+  --bg-tertiary: #25262b;
+  --accent: #0066ff;
+  --accent-hover: #0052cc;
+  --text-primary: #ffffff;
+  --text-secondary: #b8bcc8;
+  --success: #00d4aa;
+  --warning: #ffb84d;
+  --danger: #ff4757;
+  --border: #343741;
+  font-family: 'Inter', sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
+  color: var(--text-primary);
+  overflow: hidden;
+}
+
+.login-container {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.login-container.hidden {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-20px);
+}
+
+.login-card {
+  background: var(--bg-secondary);
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  padding: 48px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+  width: clamp(320px, 90vw, 480px);
+  position: relative;
+}
+
+.login-header {
+  text-align: center;
+  margin-bottom: 32px;
+}
+
+.login-header h1 {
+  font-size: 28px;
+  font-weight: 700;
+  margin: 0 0 8px 0;
+  background: linear-gradient(135deg, var(--accent) 0%, #00d4aa 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.login-header p {
+  color: var(--text-secondary);
+  margin: 0;
+  font-size: 15px;
+}
+
+.form-group {
+  margin-bottom: 24px;
+}
+
+.form-group label {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  margin-bottom: 8px;
+  color: var(--text-secondary);
+}
+
+.form-group input, .form-group select {
+  width: 100%;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  font-size: 15px;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.form-group input:focus, .form-group select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(0, 102, 255, 0.1);
+}
+
+.form-group input.error {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 3px rgba(255, 71, 87, 0.1);
+}
+
+.button-group {
+  display: flex;
+  gap: 12px;
+  margin-top: 32px;
+}
+
+.btn {
+  flex: 1;
+  padding: 14px 24px;
+  border: none;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  outline: none;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 25px rgba(0, 102, 255, 0.3);
+}
+
+.btn-primary:disabled {
+  background: #374151;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.btn-secondary {
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+}
+
+.btn-secondary:hover {
+  background: var(--border);
+  color: var(--text-primary);
+}
+
+.settings-btn {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  padding: 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 16px;
+}
+
+.settings-btn:hover {
+  background: var(--border);
+  color: var(--text-primary);
+}
+
+.settings-panel {
+  position: absolute;
+  top: 60px;
+  right: 16px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 24px;
+  min-width: 300px;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-10px);
+  transition: all 0.3s ease;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+}
+
+.settings-panel.show {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+.settings-header {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 16px;
+  color: var(--text-primary);
+}
+
+.setting-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.checkbox-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.checkbox-group input[type="checkbox"] {
+  width: auto;
+  margin: 0;
+}
+
+.message {
+  min-height: 20px;
+  font-size: 13px;
+  text-align: center;
+  margin-top: 16px;
+  font-weight: 500;
+}
+
+.message.error {
+  color: var(--danger);
+}
+
+.message.success {
+  color: var(--success);
+}
+
+/* Viewer Styles */
+.viewer {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  background: #000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.4s ease;
+}
+
+.viewer.show {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.video-container {
+  position: relative;
+  flex: 1;
+  background: #0a0a0a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  border-right: 1px solid #222;
+}
+
+.video-container:last-child {
+  border-right: none;
+}
+
+.video-container.single {
+  flex: none;
+  width: 100%;
+  height: 100%;
+}
+
+.video-container video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.fullscreen-btn {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background: rgba(0, 0, 0, 0.8);
+  border: none;
+  color: white;
+  padding: 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  opacity: 0;
+  transition: all 0.3s ease;
+  font-size: 16px;
+}
+
+.video-container:hover .fullscreen-btn {
+  opacity: 1;
+}
+
+.fullscreen-btn:hover {
+  background: rgba(0, 0, 0, 0.9);
+  transform: scale(1.05);
+}
+
+.loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #000;
+  z-index: 10;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.spinner {
+  width: 48px;
+  height: 48px;
+  border: 3px solid #333;
+  border-top: 3px solid var(--accent);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.loading-text {
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+/* Status Indicators */
+.status-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--accent) 0%, var(--success) 100%);
+  z-index: 1001;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.status-bar.show {
+  opacity: 1;
+}
+
+.connection-status {
+  position: fixed;
+  top: 20px;
+  left: 20px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  z-index: 999;
+  display: none;
+}
+
+.connection-status.connected {
+  background: var(--success);
+  color: white;
+}
+
+.connection-status.connecting {
+  background: var(--warning);
+  color: black;
+}
+
+.connection-status.disconnected {
+  background: var(--danger);
+  color: white;
+}
+
+.diagnostics {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: rgba(0, 0, 0, 0.95);
+  color: var(--success);
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+  font-size: 12px;
+  padding: 16px 24px;
+  z-index: 1000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+  border-bottom: 1px solid #333;
+}
+
+.diagnostics.show {
+  opacity: 1;
+}
+
+.reconnecting {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--warning);
+  color: black;
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-weight: 600;
+  z-index: 999;
+  display: none;
+}
+
+.disconnect-btn {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  background: var(--danger);
+  color: white;
+  border: none;
+  padding: 12px 20px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  z-index: 999;
+  display: none;
+  transition: all 0.2s ease;
+}
+
+.disconnect-btn:hover {
+  background: #e73949;
+  transform: translateY(-1px);
+}
+</style>
+</head>
+<body>
+
+<div id="loginContainer" class="login-container">
+  <div class="login-card">
+    <div class="settings-btn" onclick="toggleSettings()">⚙️</div>
+    
+    <div id="settingsPanel" class="settings-panel">
+      <div class="settings-header">Connection Settings</div>
+      
+      <div class="form-group">
+        <label>Video Quality</label>
+        <div class="setting-row">
+          <select id="resolution">
+            <option value="1920x1080">1080p HD</option>
+            <option value="1280x720" selected>720p HD</option>
+            <option value="854x480">480p</option>
+            <option value="640x360">360p</option>
+          </select>
+          <select id="bitrate">
+            <option value="3000">3 Mbps</option>
+            <option value="2000" selected>2 Mbps</option>
+            <option value="1000">1 Mbps</option>
+            <option value="500">500 Kbps</option>
+          </select>
+        </div>
+      </div>
+      
+      <div class="checkbox-group">
+        <input type="checkbox" id="autoReconnect" checked>
+        <label for="autoReconnect">Auto-reconnect on disconnect</label>
+      </div>
+    </div>
+    
+    <div class="login-header">
+      <h1>Drone Ground Station</h1>
+      <p>Connect to your drone's video feed</p>
+    </div>
+    
+    <div class="form-group">
+      <label for="server">Jitsi Server</label>
+      <input type="text" id="server" placeholder="meet.jit.si" value="meet.jit.si">
+    </div>
+    
+    <div class="form-group">
+      <label for="room">Room Name</label>
+      <input type="text" id="room" placeholder="drone-feed-001">
+    </div>
+    
+    <div class="form-group">
+      <label for="password">Room Password (optional)</label>
+      <input type="password" id="password" placeholder="Leave empty if no password">
+    </div>
+    
+    <div class="form-group">
+      <label for="displayName">Your Name</label>
+      <input type="text" id="displayName" placeholder="Ground Station" value="Ground Station">
+    </div>
+    
+    <div class="button-group">
+      <button id="connectBtn" class="btn btn-primary" disabled>Connect to Drone</button>
+      <button id="testBtn" class="btn btn-secondary">Test Connection</button>
+    </div>
+    
+    <div id="message" class="message"></div>
+  </div>
+</div>
+
+<div id="viewer" class="viewer">
+  <div class="status-bar" id="statusBar"></div>
+  
+  <div id="cam1Container" class="video-container">
+    <video id="cam1" autoplay playsinline muted></video>
+    <button class="fullscreen-btn" onclick="toggleFullscreen('cam1')">⛶</button>
+  </div>
+  
+  <div id="cam2Container" class="video-container">
+    <video id="cam2" autoplay playsinline muted></video>
+    <button class="fullscreen-btn" onclick="toggleFullscreen('cam2')">⛶</button>
+  </div>
+  
+  <div id="loading" class="loading">
+    <div class="spinner"></div>
+    <div class="loading-text">Connecting to drone feed...</div>
+  </div>
+  
+  <button id="disconnectBtn" class="disconnect-btn" onclick="disconnect()">Disconnect</button>
+</div>
+
+<div id="connectionStatus" class="connection-status">Connecting...</div>
+<div id="diagnostics" class="diagnostics"></div>
+<div id="reconnectingIndicator" class="reconnecting">Reconnecting...</div>
+
+<script>
+// Global variables
+let connection = null;
+let conference = null;
+let debugMode = false;
+let reconnectAttempts = 0;
+let maxReconnectAttempts = 5;
+let reconnectDelay = 2000;
+let activeStreams = 0;
+let fullscreenActive = false;
+let connectionStats = {
+  ping: 0,
+  bandwidth: 0,
+  quality: 'Unknown',
+  participants: 0
+};
+
+// DOM helpers
+const $ = id => document.getElementById(id);
+const $$ = selector => document.querySelectorAll(selector);
+
+// Initialize
+document.addEventListener('DOMContentLoaded', () => {
+  setupEventListeners();
+  updateConnectButton();
+});
+
+function setupEventListeners() {
+  // Form validation
+  ['server', 'room', 'displayName'].forEach(id => {
+    $(id).addEventListener('input', updateConnectButton);
+    $(id).addEventListener('blur', updateConnectButton);
+  });
+  
+  // Connect button
+  $('connectBtn').addEventListener('click', handleConnect);
+  $('testBtn').addEventListener('click', testConnection);
+  
+  // Settings panel
+  document.addEventListener('click', (e) => {
+    if (!$('settingsPanel').contains(e.target) && !e.target.classList.contains('settings-btn')) {
+      $('settingsPanel').classList.remove('show');
+    }
+  });
+  
+  // Debug mode toggle
+  document.addEventListener('keydown', (e) => {
+    if (e.code === 'Backquote' && !e.ctrlKey && !e.altKey && !e.shiftKey) {
+      e.preventDefault();
+      toggleDebugMode();
+    }
+  });
+  
+  // Fullscreen listeners
+  document.addEventListener('fullscreenchange', () => {
+    fullscreenActive = !!document.fullscreenElement;
+  });
+  document.addEventListener('webkitfullscreenchange', () => {
+    fullscreenActive = !!document.webkitFullscreenElement;
+  });
+}
+
+function updateConnectButton() {
+  const server = $('server').value.trim();
+  const room = $('room').value.trim();
+  const displayName = $('displayName').value.trim();
+  
+  const isValid = server && room && displayName;
+  $('connectBtn').disabled = !isValid;
+  
+  // Validate server format
+  if (server && !isValidDomain(server)) {
+    $('server').classList.add('error');
+  } else {
+    $('server').classList.remove('error');
+  }
+  
+  // Validate room name
+  if (room && !isValidRoomName(room)) {
+    $('room').classList.add('error');
+  } else {
+    $('room').classList.remove('error');
+  }
+}
+
+function isValidDomain(domain) {
+  return /^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(domain) || domain === 'meet.jit.si' || domain === 'localhost';
+}
+
+function isValidRoomName(room) {
+  return /^[a-zA-Z0-9-_]+$/.test(room);
+}
+
+function handleConnect() {
+  const server = $('server').value.trim();
+  const room = $('room').value.trim();
+  const password = $('password').value.trim();
+  const displayName = $('displayName').value.trim();
+  
+  if (!isValidDomain(server)) {
+    showMessage('Please enter a valid server domain', 'error');
+    return;
+  }
+  
+  if (!isValidRoomName(room)) {
+    showMessage('Room name can only contain letters, numbers, hyphens, and underscores', 'error');
+    return;
+  }
+  
+  clearMessage();
+  
+  // Hide login, show viewer
+  $('loginContainer').classList.add('hidden');
+  $('viewer').classList.add('show');
+  $('statusBar').classList.add('show');
+  $('connectionStatus').style.display = 'block';
+  $('disconnectBtn').style.display = 'block';
+  
+  connect(server, room, password, displayName);
+}
+
+function connect(server, room, password, displayName) {
+  updateConnectionStatus('connecting', 'Connecting...');
+  
+  // Initialize Jitsi
+  JitsiMeetJS.setLogLevel(JitsiMeetJS.logLevels.WARN);
+  JitsiMeetJS.init({
+    disableAudioLevels: true
+  });
+  
+  // Configuration
+  const resolution = $('resolution').value.split('x');
+  const bitrate = parseInt($('bitrate').value);
+  
+  const options = {
+    hosts: {
+      domain: server,
+      muc: `conference.${server}`
+    },
+    serviceUrl: `wss://${server}/xmpp-websocket`,
+    clientNode: 'http://jitsi.org/jitsimeet'
+  };
+  
+  // Create connection
+  connection = new JitsiMeetJS.JitsiConnection(null, null, options);
+  
+  // Connection events
+  connection.addEventListener(JitsiMeetJS.events.connection.CONNECTION_ESTABLISHED, () => {
+    onConnectionEstablished(room, password, displayName);
+  });
+  
+  connection.addEventListener(JitsiMeetJS.events.connection.CONNECTION_FAILED, (error) => {
+    onConnectionFailed(error);
+  });
+  
+  connection.addEventListener(JitsiMeetJS.events.connection.CONNECTION_DISCONNECTED, () => {
+    onDisconnected();
+  });
+  
+  // Connect
+  connection.connect();
+}
+
+function onConnectionEstablished(room, password, displayName) {
+  updateConnectionStatus('connected', 'Connected');
+  reconnectAttempts = 0;
+  
+  // Create conference
+  const conferenceOptions = {
+    openBridgeChannel: true
+  };
+  
+  if (password) {
+    conferenceOptions.password = password;
+  }
+  
+  conference = connection.initJitsiConference(room, conferenceOptions);
+  
+  // Conference events
+  conference.on(JitsiMeetJS.events.conference.CONFERENCE_JOINED, () => {
+    onConferenceJoined(displayName);
+  });
+  
+  conference.on(JitsiMeetJS.events.conference.CONFERENCE_FAILED, (error) => {
+    if (error === JitsiMeetJS.errors.conference.PASSWORD_REQUIRED) {
+      showMessage('Room password is required', 'error');
+      disconnect();
+      return;
+    }
+    onConferenceFailed(error);
+  });
+  
+  conference.on(JitsiMeetJS.events.conference.TRACK_ADDED, (track) => {
+    onTrackAdded(track);
+  });
+  
+  conference.on(JitsiMeetJS.events.conference.TRACK_REMOVED, (track) => {
+    onTrackRemoved(track);
+  });
+  
+  conference.on(JitsiMeetJS.events.conference.USER_JOINED, (id, user) => {
+    connectionStats.participants++;
+    updateDiagnostics();
+  });
+  
+  conference.on(JitsiMeetJS.events.conference.USER_LEFT, (id, user) => {
+    connectionStats.participants = Math.max(0, connectionStats.participants - 1);
+    updateDiagnostics();
+  });
+  
+  // Join conference
+  conference.join();
+}
+
+function onConferenceJoined(displayName) {
+  conference.setDisplayName(displayName);
+  $('loading').querySelector('.loading-text').textContent = 'Waiting for drone video feed...';
+  startDiagnostics();
+}
+
+function onTrackAdded(track) {
+  if (track.isLocal() || track.getType() !== 'video') return;
+  
+  activeStreams++;
+  const container = activeStreams === 1 ? $('cam1Container') : $('cam2Container');
+  const video = container.querySelector('video');
+  
+  track.attach(video);
+  updateVideoLayout();
+  
+  if (activeStreams >= 1) {
+    $('loading').style.display = 'none';
+  }
+  
+  updateDiagnostics();
+}
+
+function onTrackRemoved(track) {
+  if (track.isLocal() || track.getType() !== 'video') return;
+  
+  activeStreams = Math.max(0, activeStreams - 1);
+  updateVideoLayout();
+  updateDiagnostics();
+}
+
+function onConnectionFailed(error) {
+  console.error('Connection failed:', error);
+  updateConnectionStatus('disconnected', 'Connection Failed');
+  
+  if ($('autoReconnect').checked && reconnectAttempts < maxReconnectAttempts) {
+    attemptReconnect();
+  } else {
+    showMessage('Connection failed. Please check your settings and try again.', 'error');
+    setTimeout(() => {
+      disconnect();
+    }, 3000);
+  }
+}
+
+function onConferenceFailed(error) {
+  console.error('Conference failed:', error);
+  showMessage('Failed to join room. Please check room name and password.', 'error');
+  setTimeout(() => {
+    disconnect();
+  }, 3000);
+}
+
+function onDisconnected() {
+  updateConnectionStatus('disconnected', 'Disconnected');
+  
+  if ($('autoReconnect').checked && reconnectAttempts < maxReconnectAttempts) {
+    attemptReconnect();
+  } else {
+    setTimeout(() => {
+      disconnect();
+    }, 2000);
+  }
+}
+
+function attemptReconnect() {
+  reconnectAttempts++;
+  $('reconnectingIndicator').style.display = 'block';
+  
+  setTimeout(() => {
+    const server = $('server').value.trim();
+    const room = $('room').value.trim();
+    const password = $('password').value.trim();
+    const displayName = $('displayName').value.trim();
+    
+    connect(server, room, password, displayName);
+    $('reconnectingIndicator').style.display = 'none';
+  }, reconnectDelay * reconnectAttempts);
+}
+
+function disconnect() {
+  if (conference) {
+    conference.leave();
+    conference = null;
+  }
+  
+  if (connection) {
+    connection.disconnect();
+    connection = null;
+  }
+  
+  // Reset UI
+  $('loginContainer').classList.remove('hidden');
+  $('viewer').classList.remove('show');
+  $('statusBar').classList.remove('show');
+  $('loading').style.display = 'flex';
+  $('connectionStatus').style.display = 'none';
+  $('disconnectBtn').style.display = 'none';
+  $('diagnostics').classList.remove('show');
+  
+  activeStreams = 0;
+  reconnectAttempts = 0;
+  debugMode = false;
+  
+  clearMessage();
+}
+
+function updateConnectionStatus(status, text) {
+  const indicator = $('connectionStatus');
+  indicator.className = `connection-status ${status}`;
+  indicator.textContent = text;
+}
+
+function updateVideoLayout() {
+  const cam1 = $('cam1Container');
+  const cam2 = $('cam2Container');
+  
+  if (activeStreams === 1) {
+    cam1.classList.add('single');
+    cam2.style.display = 'none';
+  } else if (activeStreams >= 2) {
+    cam1.classList.remove('single');
+    cam2.style.display = 'flex';
+  }
+}
+
+function toggleFullscreen(videoId) {
+  if (fullscreenActive) return exitFullscreen();
+  
+  const video = $(videoId);
+  
+  if (video.requestFullscreen) {
+    video.requestFullscreen();
+  } else if (video.webkitRequestFullscreen) {
+    video.webkitRequestFullscreen();
+  } else if (video.msRequestFullscreen) {
+    video.msRequestFullscreen();
+  }
+  
+  fullscreenActive = true;
+}
+
+function exitFullscreen() {
+  if (document.exitFullscreen) {
+    document.exitFullscreen();
+  } else if (document.webkitExitFullscreen) {
+    document.webkitExitFullscreen();
+  } else if (document.msExitFullscreen) {
+    document.msExitFullscreen();
+  }
+  
+  fullscreenActive = false;
+}
+
+function startDiagnostics() {
+  setInterval(() => {
+    if (conference && connection) {
+      // Simulate connection stats (in real implementation, these would come from Jitsi APIs)
+      connectionStats.ping = Math.floor(Math.random() * 100) + 20;
+      connectionStats.bandwidth = Math.floor(Math.random() * 2000) + 500;
+      connectionStats.quality = connectionStats.ping < 50 ? 'Excellent' : 
+                               connectionStats.ping < 100 ? 'Good' : 'Fair';
+      
+      updateDiagnostics();
+    }
+  }, 2000);
+}
+
+function updateDiagnostics() {
+  if (!debugMode) return;
+  
+  const info = [
+    `CONNECTION: ${connection ? 'Active' : 'Inactive'}`,
+    `CONFERENCE: ${conference ? 'Joined' : 'Not joined'}`,
+    `PARTICIPANTS: ${connectionStats.participants}`,
+    `ACTIVE STREAMS: ${activeStreams}`,
+    `PING: ${connectionStats.ping}ms`,
+    `BANDWIDTH: ${connectionStats.bandwidth}kbps`,
+    `QUALITY: ${connectionStats.quality}`,
+    `RECONNECT ATTEMPTS: ${reconnectAttempts}/${maxReconnectAttempts}`
+  ].join(' | ');
+  
+  $('diagnostics').textContent = `[DEBUG] ${info}`;
+}
+
+function toggleDebugMode() {
+  debugMode = !debugMode;
+  $('diagnostics').classList.toggle('show', debugMode);
+  
+  if (debugMode) {
+    updateDiagnostics();
+  }
+}
+
+function toggleSettings() {
+  $('settingsPanel').classList.toggle('show');
+}
+
+function testConnection() {
+  const server = $('server').value.trim();
+  
+  if (!server) {
+    showMessage('Please enter a server address', 'error');
+    return;
+  }
+  
+  if (!isValidDomain(server)) {
+    showMessage('Invalid server format', 'error');
+    return;
+  }
+  
+  showMessage('Server format is valid ✓', 'success');
+  setTimeout(clearMessage, 3000);
+}
+
+function showMessage(text, type = '') {
+  const message = $('message');
+  message.textContent = text
