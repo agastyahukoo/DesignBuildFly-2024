@@ -969,3 +969,15 @@ function testConnection() {
 function showMessage(text, type = '') {
   const message = $('message');
   message.textContent = text
+  message.textContent = text
+  message.textContent = text;                 
+  message.className = `message ${type}`;      
+ } 
+  function clearMessage() {
+  const message = $('message');
+  message.textContent = '';
+  message.className = 'message';
+}
+</script>
+</body>
+</html>
