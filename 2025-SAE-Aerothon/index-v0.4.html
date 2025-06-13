@@ -671,44 +671,58 @@ function handleConnect() {
 function connect(server, room, password, displayName) {
   updateConnectionStatus('connecting', 'Connecting...');
   
-  // Initialize Jitsi
   JitsiMeetJS.setLogLevel(JitsiMeetJS.logLevels.WARN);
   JitsiMeetJS.init({
     disableAudioLevels: true
   });
   
-  // Configuration
   const resolution = $('resolution').value.split('x');
   const bitrate = parseInt($('bitrate').value);
   
   const options = {
     hosts: {
       domain: server,
-      muc: `conference.${server}`
+     function connect(server, room, password, displayName) {
+  updateConnectionStatus('connecting', 'Connecting…');
+
+  JitsiMeetJS.setLogLevel(JitsiMeetJS.logLevels.WARN);
+  JitsiMeetJS.init({ disableAudioLevels: true });
+
+  const options = {
+    hosts: {
+      domain: server,                
+      muc: `conference.${server}`    
     },
     serviceUrl: `wss://${server}/xmpp-websocket`,
     clientNode: 'http://jitsi.org/jitsimeet'
   };
-  
-  // Create connection
+
   connection = new JitsiMeetJS.JitsiConnection(null, null, options);
-  
-  // Connection events
-  connection.addEventListener(JitsiMeetJS.events.connection.CONNECTION_ESTABLISHED, () => {
-    onConnectionEstablished(room, password, displayName);
-  });
-  
-  connection.addEventListener(JitsiMeetJS.events.connection.CONNECTION_FAILED, (error) => {
-    onConnectionFailed(error);
-  });
-  
-  connection.addEventListener(JitsiMeetJS.events.connection.CONNECTION_DISCONNECTED, () => {
-    onDisconnected();
-  });
-  
-  const creds = $('xmppUser').value && $('xmppPass').value
-               ? { id: $('xmppUser').value, password: $('xmppPass').value }
-               : null;          
+
+  let userId   = $('xmppUser').value.trim();   
+  const userPw = $('xmppPass').value;          
+
+  if (userId && !userId.includes('@')) {
+    userId = `${userId}@${server}`;
+  }
+
+  const creds = userId ? { id: userId, password: userPw } : null;
+
+  connection.addEventListener(
+    JitsiMeetJS.events.connection.CONNECTION_ESTABLISHED,
+    () => onConnectionEstablished(room, password, displayName)
+  );
+
+  connection.addEventListener(
+    JitsiMeetJS.events.connection.CONNECTION_FAILED,
+    (error) => onConnectionFailed(error)
+  );
+
+  connection.addEventListener(
+    JitsiMeetJS.events.connection.CONNECTION_DISCONNECTED,
+    () => onDisconnected()
+  );
+
   connection.connect(creds);
 }
 
