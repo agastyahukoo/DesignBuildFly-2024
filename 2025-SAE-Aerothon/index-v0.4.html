@@ -503,6 +503,16 @@ html, body {
       <input type="text" id="displayName" placeholder="Ground Station" value="Ground Station">
     </div>
     
+    <div class="form-group">
+      <label for="xmppUser">Jitsi Username (required on secure domains)</label>
+      <input type="text" id="xmppUser" placeholder="pilot" autocomplete="username">
+    </div>
+
+    <div class="form-group">
+      <label for="xmppPass">Jitsi Password</label>
+      <input type="password" id="xmppPass" placeholder="••••••••" autocomplete="current-password">
+    </div>
+
     <div class="button-group">
       <button id="connectBtn" class="btn btn-primary" disabled>Connect to Drone</button>
       <button id="testBtn" class="btn btn-secondary">Test Connection</button>
@@ -696,8 +706,10 @@ function connect(server, room, password, displayName) {
     onDisconnected();
   });
   
-  // Connect
-  connection.connect();
+  const creds = $('xmppUser').value && $('xmppPass').value
+               ? { id: $('xmppUser').value, password: $('xmppPass').value }
+               : null;          
+  connection.connect(creds);
 }
 
 function onConnectionEstablished(room, password, displayName) {
@@ -784,6 +796,11 @@ function onTrackRemoved(track) {
 
 function onConnectionFailed(error) {
   console.error('Connection failed:', error);
+  if (error === JitsiMeetJS.errors.connection.PASSWORD_REQUIRED) {
+     showMessage('This Jitsi server requires a username and password. Enter them and try again.', 'error');
+     disconnect();
+     return;
+   }
   updateConnectionStatus('disconnected', 'Connection Failed');
   
   if ($('autoReconnect').checked && reconnectAttempts < maxReconnectAttempts) {
