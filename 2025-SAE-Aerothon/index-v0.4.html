@@ -669,77 +669,80 @@ function handleConnect() {
 }
 
 function connect(server, room, password, displayName) {
-  // UI feedback
+  /* ---------- UI feedback ---------- */
   updateConnectionStatus('connecting', 'Connecting…');
 
-  // Initialise lib-jitsi-meet
+  /* ---------- lib-jitsi-meet bootstrap ---------- */
   JitsiMeetJS.setLogLevel(JitsiMeetJS.logLevels.WARN);
   JitsiMeetJS.init({ disableAudioLevels: true });
 
-  // Quality settings chosen in the settings panel
+  /* ---------- Quality settings from the panel ---------- */
   const [width, height] = $('resolution').value.split('x').map(Number);
   const bitrate        = parseInt($('bitrate').value, 10);
 
-  // Basic connection options
+  /* ---------- XMPP / BOSH / WebSocket endpoints ---------- */
   const options = {
     hosts: {
       domain: server,
-      muc: `conference.${server}`   // Multi-user-chat component
+      muc: `conference.${server}`
     },
     serviceUrl: `wss://${server}/xmpp-websocket`,
     clientNode: 'http://jitsi.org/jitsimeet'
   };
 
-  // Create the global connection object
   connection = new JitsiMeetJS.JitsiConnection(null, null, options);
 
-  /* --------------------------------------------------------
-     XMPP credentials (only needed on secure/authenticated servers)
-  --------------------------------------------------------- */
+  /* ---------- Credentials (only for secure domains) ---------- */
   let userId  = $('xmppUser').value.trim();
   const userPw = $('xmppPass').value;
 
-  if (userId && !userId.includes('@')) {
-    userId = `${userId}@${server}`;  // add domain if the user left it off
-  }
+  if (userId && !userId.includes('@')) userId += `@${server}`;
   const creds = userId ? { id: userId, password: userPw } : null;
 
-  /* --------------------------------------------------------
-     Wire up connection-level event handlers
-  --------------------------------------------------------- */
+  /* ---------- Connection-level event hooks ---------- */
   connection.addEventListener(
     JitsiMeetJS.events.connection.CONNECTION_ESTABLISHED,
     () => onConnectionEstablished(room, password, displayName)
   );
-
   connection.addEventListener(
     JitsiMeetJS.events.connection.CONNECTION_FAILED,
-    (error) => onConnectionFailed(error)
+    onConnectionFailed
   );
-
   connection.addEventListener(
     JitsiMeetJS.events.connection.CONNECTION_DISCONNECTED,
-    () => onDisconnected()
+    onDisconnected
   );
 
-  /* --------------------------------------------------------
-     Optional: tell the bridge our preferred constraints
-     (only works on up-to-date Jitsi deployments)
-  --------------------------------------------------------- */
-  if (width && height) {
-    JitsiMeetJS.mediaDevices
-      .setVideoConstraint({ height, width, frameRate: { max: 30 } })
-      .catch(() => {});  // ignore if the function isn’t supported
-  }
-  if (!isNaN(bitrate)) {
-    JitsiMeetJS.mediaDevices.setEncoderBitrate(bitrate).catch(() => {});
+  /* ---------- Try to apply user-requested constraints ---------- */
+  if (
+    JitsiMeetJS.mediaDevices &&
+    typeof JitsiMeetJS.mediaDevices.setVideoConstraints === 'function'
+  ) {
+    JitsiMeetJS.mediaDevices.setVideoConstraints({
+      width:  { ideal: width },
+      height: { ideal: height },
+      frameRate: { ideal: 30 }
+    });
   }
 
-  /* --------------------------------------------------------
-     Finally: attempt the actual connection
-  --------------------------------------------------------- */
+  /*  NOTE:
+      There is no public setEncoderBitrate() helper in upstream
+      lib-jitsi-meet right now.  Leave this in only if you’re on a fork
+      that implements it.
+
+  if (
+    !isNaN(bitrate) &&
+    JitsiMeetJS.mediaDevices &&
+    typeof JitsiMeetJS.mediaDevices.setEncoderBitrate === 'function'
+  ) {
+    JitsiMeetJS.mediaDevices.setEncoderBitrate(bitrate);
+  }
+  */
+
+  /* ---------- Kick-off the handshake ---------- */
   connection.connect(creds);
 }
+
 
 
 function onConnectionEstablished(room, password, displayName) {
