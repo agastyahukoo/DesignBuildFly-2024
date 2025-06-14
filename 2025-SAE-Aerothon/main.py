@@ -12,7 +12,7 @@ def select_file():
             infer_video(file_path)
 
 def infer_image(path):
-    model = YOLO("weights.yaml")
+    model = YOLO("best.pt")
     results = model(path)
     for r in results:
         annotated = r.plot()
@@ -21,7 +21,7 @@ def infer_image(path):
         cv2.destroyAllWindows()
 
 def infer_video(path):
-    model = YOLO("weights.yaml")
+    model = YOLO("best.pt")
     cap = cv2.VideoCapture(path)
     while True:
         ret, frame = cap.read()
